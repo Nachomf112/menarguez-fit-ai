@@ -67,12 +67,11 @@ export default async function handler(req, res) {
       return res.status(200).json({ valid: false, error: 'Código no encontrado' });
     }
 
-    let codeData;
     let raw = upstashData.result;
     if (Array.isArray(raw)) raw = raw[0];
     if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch(e) {} }
     if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch(e) {} }
-    codeData = (raw && typeof raw === 'object') ? raw : null;
+    const codeData = (raw && typeof raw === 'object') ? raw : null;
 
     if (!codeData) {
       return res.status(200).json({ valid: false, error: 'Error al leer el código' });
@@ -108,7 +107,19 @@ export default async function handler(req, res) {
         timeZone: 'Europe/Madrid'
       });
 
+      const registroAcceso = JSON.stringify({
+        nombre: codeData.nombre || 'Usuario',
+        code: cleanCode,
+        fecha: fechaAcceso,
+        hora: horaAcceso,
+        tipo,
+        os,
+        browser,
+        ip
+      });
+
       if (!codeData.fingerprint) {
+        // Primer acceso — vincular dispositivo
         codeData.fingerprint = fingerprint;
         codeData.dispositivo = { os, browser, tipo, ip, fecha: fechaAcceso, hora: horaAcceso };
 
@@ -118,30 +129,28 @@ export default async function handler(req, res) {
           body: JSON.stringify(codeData)
         });
 
-        const acceso = JSON.stringify({
-          nombre: codeData.nombre || 'Usuario',
-          code: cleanCode,
-          fecha: fechaAcceso,
-          hora: horaAcceso,
-          tipo,
-          os,
-          browser,
-          ip
-        });
-
         await fetch(`${url}/lpush/fitai:accesos`, {
           method: 'POST',
           headers,
-          body: JSON.stringify(acceso)
+          body: JSON.stringify(registroAcceso)
         });
 
       } else if (codeData.fingerprint !== fingerprint) {
+        // Dispositivo diferente — bloquear
         const disp = codeData.dispositivo
           ? `${codeData.dispositivo.os} · ${codeData.dispositivo.browser} (${codeData.dispositivo.ip})`
           : 'otro dispositivo';
         return res.status(200).json({
           valid: false,
           error: `Este código está vinculado a ${disp}. Contacta con info@menarguez-ia.com`
+        });
+
+      } else {
+        // Mismo dispositivo — registrar acceso en historial
+        await fetch(`${url}/lpush/fitai:accesos`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(registroAcceso)
         });
       }
     }
