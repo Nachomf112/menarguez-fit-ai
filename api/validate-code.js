@@ -161,14 +161,35 @@ export default async function handler(req, res) {
         // pueda mostrarlos en la tabla de códigos.
         codeData.fingerprint = fingerprint;
         codeData.dispositivo = {
-          os,
-          browser,
-          ip,
-          fecha: fechaAcceso,
-          hora: horaAcceso
-        };
+  os,
+  browser,
+  ip,
+  fecha: fechaAcceso,
+  hora: horaAcceso
+};
 
-        await fetch(`${url}/set/code:${cleanCode}`, {
+await fetch(`${url}/set/code:${cleanCode}`, {
+  method: 'POST',
+  headers,
+  body: JSON.stringify(codeData)
+});
+
+// ── REGISTRAR ACCESO EN HISTORIAL ─────────────────────────
+const acceso = JSON.stringify({
+  nombre: codeData.nombre || 'Usuario',
+  code: cleanCode,
+  fecha: fechaAcceso,
+  hora: horaAcceso,
+  tipo: /Mobile|Android|iPhone|iPad/.test(userAgent || '') ? 'móvil' : /iPad|Tablet/.test(userAgent || '') ? 'tablet' : 'escritorio',
+  os,
+  browser,
+  ip
+});
+await fetch(`${url}/lpush/fitai:accesos`, {
+  method: 'POST',
+  headers,
+  body: JSON.stringify(acceso)
+});
           method: 'POST',
           headers,
           // Guardamos como objeto nativo (igual que CLI sin comillas)
