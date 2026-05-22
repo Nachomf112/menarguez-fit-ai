@@ -52,9 +52,9 @@ button { cursor: pointer; }
 
 /* ── SCREENS ── */
 .screen { display: none; min-height: 100vh; }
-[data-screen="login"] #screenLogin,
-[data-screen="profile"] #screenProfile,
-[data-screen="dashboard"] #screenDashboard { display: block; }
+html[data-screen="login"] #screenLogin { display: flex !important; }
+html[data-screen="profile"] #screenProfile { display: block !important; }
+html[data-screen="dashboard"] #screenDashboard { display: block !important; }
 
 /* ── LOGIN ── */
 #screenLogin {
