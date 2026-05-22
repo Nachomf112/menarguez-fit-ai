@@ -1240,6 +1240,16 @@ function toast(msg) {
 
 function setScreen(s) {
   document.documentElement.dataset.screen = s;
+  const screens = { login: 'screenLogin', profile: 'screenProfile', dashboard: 'screenDashboard' };
+  Object.entries(screens).forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (key === s) {
+      el.style.display = key === 'login' ? 'flex' : 'block';
+    } else {
+      el.style.display = 'none';
+    }
+  });
 }
 
 // ── LOGIN ──
