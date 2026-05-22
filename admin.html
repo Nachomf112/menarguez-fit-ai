@@ -810,7 +810,19 @@ function filterAccesos() {
   );
   renderAccesos(filtered);
 }
-
+async function deleteAcceso(idx) {
+  if (!confirm('¿Eliminar este acceso?')) return;
+  const pass = sessionStorage.getItem(ADMIN_KEY);
+  try {
+    await fetch('/api/get-access-fit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
+      body: JSON.stringify({ action: 'delete', idx })
+    });
+    toast('Acceso eliminado ✓');
+    loadAll();
+  } catch(e) { toast('Error', 'error'); }
+}
 // ── ACCIONES ──
 async function resetFingerprint(code) {
   if (!confirm(`¿Resetear fingerprint de ${code}?`)) return;
