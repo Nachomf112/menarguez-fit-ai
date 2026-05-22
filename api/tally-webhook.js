@@ -5,7 +5,7 @@
 //          guarda en Upstash → llama a Make para enviar email
 // ════════════════════════════════════════════════════════════════
 
-const MAKE_WEBHOOK_URL = 'https://hook.eu2.make.com/9equz6x2exk8phqz1vjyzwy75zy7z6y6';
+const MAKE_WEBHOOK_URL = 'https://hook.eu2.make.com/e3mchn1rw30kb66abxed37557y4guepq';
 
 function generateFitCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
