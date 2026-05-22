@@ -1682,6 +1682,7 @@ function renderWeekBars() {
 
 // ── INIT ──
 document.addEventListener('DOMContentLoaded', () => {
+  $('loginBtn').addEventListener('click', login);
   $('fitCode').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
   $('topbarDate') && ($('topbarDate').textContent = today());
   $('modalSugeridor').addEventListener('click', e => {
