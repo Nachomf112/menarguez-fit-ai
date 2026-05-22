@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin · Menarguez Fit AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0a1a0f;
+  --bg2: #0f2214;
+  --panel: #162b1c;
+  --panel2: #1c3524;
+  --line: #2a4a32;
+  --green: #4ade80;
+  --green2: #22c55e;
+  --green3: #16a34a;
+  --lime: #a3e635;
+  --text: #f0fdf4;
+  --muted: #6b9e7a;
+  --red: #f87171;
+  --orange: #fb923c;
+  --yellow: #facc15;
+  --blue: #60a5fa;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+button { cursor: pointer; font: inherit; }
+
+/* LOGIN */
+#loginScreen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: radial-gradient(ellipse at top left, rgba(74,222,128,.12), transparent 50%), var(--bg);
+}
+
+.login-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 40px;
+  width: 360px;
+  text-align: center;
+}
+
+.login-logo {
+  width: 64px; height: 64px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--green3), var(--lime));
+  display: grid; place-items: center;
+  font-family: 'Syne', sans-serif;
+  font-weight: 900; font-size: 28px;
+  color: #0a1a0f;
+  margin: 0 auto 20px;
+}
+
+.login-card h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: 22px; font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.login-card p { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+
+.login-card input {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 13px 16px;
+  font-size: 15px;
+  outline: none;
+  margin-bottom: 12px;
+  text-align: center;
+  letter-spacing: 3px;
+}
+
+.login-card input:focus { border-color: var(--green); }
+
+.btn-green {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--green3), var(--green2));
+  color: #fff;
+  border: none;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700; font-size: 15px;
+  transition: opacity .2s;
+}
+
+.btn-green:hover { opacity: .9; }
+.login-error { color: var(--red); font-size: 13px; margin-top: 10px; display: none; }
+
+/* ADMIN */
+#adminScreen { display: none; }
+
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(10,26,15,.95);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+  padding: 16px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.topbar-brand { display: flex; align-items: center; gap: 12px; }
+
+.topbar-logo {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--green3), var(--lime));
+  display: grid; place-items: center;
+  font-family: 'Syne', sans-serif;
+  font-weight: 900; font-size: 16px;
+  color: #0a1a0f;
+}
+
+.topbar-title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700; font-size: 15px;
+}
+
+.topbar-sub { font-size: 11px; color: var(--muted); }
+
+.topbar-right { display: flex; gap: 10px; align-items: center; }
+
+.badge-live {
+  background: rgba(74,222,128,.15);
+  border: 1px solid rgba(74,222,128,.3);
+  color: var(--green);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  display: flex; align-items: center; gap: 5px;
+}
+
+.badge-live::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all .2s;
+}
+
+.btn-outline:hover { border-color: var(--green); color: var(--green); }
+
+/* TABS */
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 16px 28px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg2);
+}
+
+.tab {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  transition: all .2s;
+  margin-bottom: -1px;
+}
+
+.tab.active { color: var(--green); border-bottom-color: var(--green); }
+.tab:hover { color: var(--text); }
+
+/* CONTENT */
+.content { padding: 24px 28px; max-width: 1400px; }
+
+/* STATS GRID */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-family: 'Syne', sans-serif;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  color: var(--green);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-sub { font-size: 12px; color: var(--muted); }
+
+/* CHARTS */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.chart-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.chart-card h3 {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  letter-spacing: -.01em;
+}
+
+.chart-wrap { position: relative; }
+
+/* TABLE */
+.table-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.table-header h3 {
+  font-family: 'Syne', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.table-actions { display: flex; gap: 8px; }
+
+.search-input {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  outline: none;
+  width: 220px;
+}
+
+.search-input:focus { border-color: var(--green); }
+
+table { width: 100%; border-collapse: collapse; }
+
+th {
+  text-align: left;
+  padding: 10px 16px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg2);
+}
+
+td {
+  padding: 12px 16px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(42,74,50,.4);
+  vertical-align: middle;
+}
+
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(74,222,128,.03); }
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+}
+
+.badge-free { background: rgba(96,165,250,.15); color: var(--blue); border: 1px solid rgba(96,165,250,.3); }
+.badge-pro { background: rgba(74,222,128,.15); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+.badge-active { background: rgba(74,222,128,.1); color: var(--green2); }
+.badge-expired { background: rgba(248,113,113,.1); color: var(--red); }
+.badge-mobile { background: rgba(251,146,60,.1); color: var(--orange); }
+.badge-desktop { background: rgba(96,165,250,.1); color: var(--blue); }
+.badge-tablet { background: rgba(163,230,53,.1); color: var(--lime); }
+
+.device-icon { font-size: 16px; margin-right: 4px; }
+
+.action-btn {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all .2s;
+  margin-right: 4px;
+}
+
+.action-btn:hover { border-color: var(--green); color: var(--green); }
+.action-btn.danger:hover { border-color: var(--red); color: var(--red); }
+
+.mono { font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: .05em; }
+
+/* SPINNER */
+.spinner {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(74,222,128,.3);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-row td { text-align: center; padding: 40px; color: var(--muted); }
+
+/* TOAST */
+.toast-wrap {
+  position: fixed;
+  top: 16px; right: 16px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--green);
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  animation: toastIn .25s ease;
+  min-width: 260px;
+}
+
+.toast.error { border-left-color: var(--red); }
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .charts-grid { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<!-- ══ LOGIN ══ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">F</div>
+    <h1>Fit AI Admin</h1>
+    <p>Panel de control · Acceso restringido</p>
+    <input type="password" id="adminPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkLogin()">
+    <button class="btn-green" onclick="checkLogin()">Acceder →</button>
+    <div class="login-error" id="loginError">Contraseña incorrecta.</div>
+  </div>
+</div>
+
+<!-- ══ ADMIN ══ -->
+<div id="adminScreen">
+
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div class="topbar-logo">F</div>
+      <div>
+        <div class="topbar-title">Menarguez Fit AI · Admin</div>
+        <div class="topbar-sub" id="lastUpdate">Cargando...</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="badge-live">LIVE</div>
+      <button class="btn-outline" onclick="loadAll()">↻ Refresh</button>
+      <button class="btn-outline" onclick="exportCSV()">↓ CSV</button>
+      <button class="btn-outline" onclick="logout()">Salir</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('dashboard')">📊 Dashboard</button>
+    <button class="tab" onclick="showTab('usuarios')">👥 Usuarios</button>
+    <button class="tab" onclick="showTab('accesos')">📋 Accesos</button>
+  </div>
+
+  <!-- TAB DASHBOARD -->
+  <div class="content" id="tabDashboard">
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Usuarios totales</div>
+        <div class="stat-value" id="statTotal">—</div>
+        <div class="stat-sub">códigos generados</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Activos hoy</div>
+        <div class="stat-value" id="statHoy">—</div>
+        <div class="stat-sub">registros hoy</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Plan Free</div>
+        <div class="stat-value" id="statFree">—</div>
+        <div class="stat-sub">usuarios free</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Plan Pro</div>
+        <div class="stat-value" style="color:var(--lime)" id="statPro">—</div>
+        <div class="stat-sub">usuarios pro</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Expirados</div>
+        <div class="stat-value" style="color:var(--red)" id="statExp">—</div>
+        <div class="stat-sub">códigos expirados</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Conversión</div>
+        <div class="stat-value" style="color:var(--yellow)" id="statConv">—</div>
+        <div class="stat-sub">Free → Pro</div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>📈 Registros últimos 7 días</h3>
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="chartDias"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>📦 Planes</h3>
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="chartPlanes"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>📱 Dispositivos</h3>
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="chartDispositivos"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- TAB USUARIOS -->
+  <div class="content" id="tabUsuarios" style="display:none">
+    <div class="table-card">
+      <div class="table-header">
+        <h3>👥 Usuarios registrados</h3>
+        <div class="table-actions">
+          <input class="search-input" id="searchUsuarios" placeholder="🔍 Buscar nombre, email, código..." oninput="filterUsuarios()">
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Código</th>
+              <th>Plan</th>
+              <th>Estado</th>
+              <th>Expira</th>
+              <th>Dispositivo</th>
+              <th>IP</th>
+              <th>Registro</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tablaUsuarios">
+            <tr class="loading-row"><td colspan="9"><span class="spinner"></span> Cargando usuarios...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB ACCESOS -->
+  <div class="content" id="tabAccesos" style="display:none">
+    <div class="table-card">
+      <div class="table-header">
+        <h3>📋 Registro de accesos</h3>
+        <div class="table-actions">
+          <input class="search-input" id="searchAccesos" placeholder="🔍 Buscar..." oninput="filterAccesos()">
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Hora</th>
+              <th>Nombre</th>
+              <th>Código</th>
+              <th>Dispositivo</th>
+              <th>OS</th>
+              <th>Navegador</th>
+              <th>IP</th>
+            </tr>
+          </thead>
+          <tbody id="tablaAccesos">
+            <tr class="loading-row"><td colspan="8"><span class="spinner"></span> Cargando accesos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── CONFIG ──
+const ADMIN_KEY = 'fitai_admin_auth';
+let allUsuarios = [];
+let allAccesos = [];
+let chartDias, chartPlanes, chartDisp;
+
+// ── LOGIN ──
+async function checkLogin() {
+  const pass = document.getElementById('adminPass').value;
+  const err = document.getElementById('loginError');
+  if (!pass) return;
+
+  try {
+    const resp = await fetch('/api/admin-auth-fit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pass })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      sessionStorage.setItem(ADMIN_KEY, pass);
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('adminScreen').style.display = 'block';
+      loadAll();
+      setInterval(loadAll, 30000);
+    } else {
+      err.style.display = 'block';
+      err.textContent = 'Contraseña incorrecta.';
+    }
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = 'Error de conexión.';
+  }
+}
+
+function logout() {
+  sessionStorage.removeItem(ADMIN_KEY);
+  location.reload();
+}
+
+// ── TABS ──
+function showTab(tab) {
+  ['Dashboard','Usuarios','Accesos'].forEach(t => {
+    document.getElementById('tab' + t).style.display = 'none';
+  });
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).style.display = 'block';
+  event.target.classList.add('active');
+}
+
+// ── LOAD ALL ──
+async function loadAll() {
+  const pass = sessionStorage.getItem(ADMIN_KEY);
+  if (!pass) return;
+
+  try {
+    const [codesResp, accessResp] = await Promise.all([
+      fetch('/api/get-codes-fit', { headers: { 'x-admin-pass': pass } }),
+      fetch('/api/get-access-fit', { headers: { 'x-admin-pass': pass } })
+    ]);
+
+    if (codesResp.ok) {
+      const data = await codesResp.json();
+      allUsuarios = data.codes || [];
+      renderUsuarios(allUsuarios);
+      updateStats(allUsuarios);
+      updateCharts(allUsuarios);
+    }
+
+    if (accessResp.ok) {
+      const data = await accessResp.json();
+      allAccesos = data.accesos || [];
+      renderAccesos(allAccesos);
+    }
+
+    document.getElementById('lastUpdate').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-ES');
+  } catch(e) {
+    toast('Error cargando datos', 'error');
+  }
+}
+
+// ── STATS ──
+function updateStats(users) {
+  const hoy = new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const total = users.length;
+  const free = users.filter(u => u.plan === 'free').length;
+  const pro = users.filter(u => u.plan === 'pro').length;
+  const exp = users.filter(u => u.expira && new Date(u.expira) < new Date()).length;
+  const registrosHoy = users.filter(u => u.fecha_registro === hoy).length;
+  const conv = total > 0 ? Math.round((pro / total) * 100) : 0;
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statHoy').textContent = registrosHoy;
+  document.getElementById('statFree').textContent = free;
+  document.getElementById('statPro').textContent = pro;
+  document.getElementById('statExp').textContent = exp;
+  document.getElementById('statConv').textContent = conv + '%';
+}
+
+// ── CHARTS ──
+function updateCharts(users) {
+  // Últimos 7 días
+  const dias = [];
+  const counts = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const label = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+    const dateStr = d.toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' });
+    dias.push(label);
+    counts.push(users.filter(u => u.fecha_registro === dateStr).length);
+  }
+
+  if (chartDias) chartDias.destroy();
+  chartDias = new Chart(document.getElementById('chartDias'), {
+    type: 'bar',
+    data: {
+      labels: dias,
+      datasets: [{ data: counts, backgroundColor: 'rgba(74,222,128,.6)', borderColor: '#4ade80', borderWidth: 1, borderRadius: 6 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#6b9e7a' }, grid: { color: 'rgba(42,74,50,.4)' } }, y: { ticks: { color: '#6b9e7a', stepSize: 1 }, grid: { color: 'rgba(42,74,50,.4)' } } } }
+  });
+
+  // Planes
+  const free = users.filter(u => u.plan === 'free').length;
+  const pro = users.filter(u => u.plan === 'pro').length;
+
+  if (chartPlanes) chartPlanes.destroy();
+  chartPlanes = new Chart(document.getElementById('chartPlanes'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Free', 'Pro'],
+      datasets: [{ data: [free, pro], backgroundColor: ['rgba(96,165,250,.7)', 'rgba(74,222,128,.7)'], borderColor: ['#60a5fa', '#4ade80'], borderWidth: 2 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#6b9e7a', font: { size: 12 } } } } }
+  });
+
+  // Dispositivos
+  const mobile = users.filter(u => u.dispositivo?.tipo === 'móvil').length;
+  const desktop = users.filter(u => u.dispositivo?.tipo === 'escritorio').length;
+  const tablet = users.filter(u => u.dispositivo?.tipo === 'tablet').length;
+
+  if (chartDisp) chartDisp.destroy();
+  chartDisp = new Chart(document.getElementById('chartDispositivos'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Móvil', 'Escritorio', 'Tablet'],
+      datasets: [{ data: [mobile, desktop, tablet], backgroundColor: ['rgba(251,146,60,.7)', 'rgba(96,165,250,.7)', 'rgba(163,230,53,.7)'], borderColor: ['#fb923c', '#60a5fa', '#a3e635'], borderWidth: 2 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#6b9e7a', font: { size: 12 } } } } }
+  });
+}
+
+// ── USUARIOS ──
+function renderUsuarios(users) {
+  const tbody = document.getElementById('tablaUsuarios');
+  if (!users.length) {
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="9" style="color:var(--muted)">No hay usuarios registrados.</td></tr>';
+    return;
+  }
+
+  const hoy = new Date();
+
+  tbody.innerHTML = users.map(u => {
+    const exp = u.expira ? new Date(u.expira) : null;
+    const expirado = exp && exp < hoy;
+    const dispositivo = u.dispositivo || {};
+    const tipo = dispositivo.tipo || '—';
+    const tipoIcon = tipo === 'móvil' ? '📱' : tipo === 'tablet' ? '📲' : '💻';
+    const tipoBadge = tipo === 'móvil' ? 'badge-mobile' : tipo === 'tablet' ? 'badge-tablet' : 'badge-desktop';
+
+    return `<tr>
+      <td>
+        <div style="font-weight:600">${u.nombre || '—'}</div>
+        <div style="font-size:11px;color:var(--muted)">${u.email || '—'}</div>
+      </td>
+      <td><span class="mono" style="color:var(--green)">${u.code || '—'}</span></td>
+      <td><span class="badge ${u.plan === 'pro' ? 'badge-pro' : 'badge-free'}">${(u.plan || 'free').toUpperCase()}</span></td>
+      <td><span class="badge ${expirado ? 'badge-expired' : 'badge-active'}">${expirado ? 'Expirado' : 'Activo'}</span></td>
+      <td style="font-size:12px;color:${expirado ? 'var(--red)' : 'var(--muted)'}">${u.expira || '—'}</td>
+      <td>
+        <span class="device-icon">${tipoIcon}</span>
+        <span class="badge ${tipoBadge}" style="font-size:10px">${tipo}</span>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">${dispositivo.os || ''} · ${dispositivo.browser || ''}</div>
+      </td>
+      <td><span class="mono" style="font-size:11px;color:var(--muted)">${dispositivo.ip || '—'}</span></td>
+      <td style="font-size:12px;color:var(--muted)">${u.fecha_registro || '—'}</td>
+      <td>
+        <button class="action-btn" onclick="resetFingerprint('${u.code}')">Reset FP</button>
+        <button class="action-btn" onclick="toggleActivo('${u.code}', ${u.activo})">${u.activo ? 'Desactivar' : 'Activar'}</button>
+        <button class="action-btn danger" onclick="deleteCode('${u.code}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function filterUsuarios() {
+  const q = document.getElementById('searchUsuarios').value.toLowerCase();
+  const filtered = allUsuarios.filter(u =>
+    (u.nombre || '').toLowerCase().includes(q) ||
+    (u.email || '').toLowerCase().includes(q) ||
+    (u.code || '').toLowerCase().includes(q)
+  );
+  renderUsuarios(filtered);
+}
+
+// ── ACCESOS ──
+function renderAccesos(accesos) {
+  const tbody = document.getElementById('tablaAccesos');
+  if (!accesos.length) {
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="8" style="color:var(--muted)">No hay accesos registrados.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = accesos.map(a => {
+    const tipo = a.tipo || '—';
+    const tipoIcon = tipo === 'móvil' ? '📱' : tipo === 'tablet' ? '📲' : '💻';
+    return `<tr>
+      <td style="font-size:12px">${a.fecha || '—'}</td>
+      <td style="font-size:12px;color:var(--muted)">${a.hora || '—'}</td>
+      <td><div style="font-weight:600;font-size:13px">${a.nombre || '—'}</div></td>
+      <td><span class="mono" style="color:var(--green);font-size:12px">${a.code || '—'}</span></td>
+      <td>${tipoIcon} ${tipo}</td>
+      <td style="font-size:12px;color:var(--muted)">${a.os || '—'}</td>
+      <td style="font-size:12px;color:var(--muted)">${a.browser || '—'}</td>
+      <td><span class="mono" style="font-size:11px;color:var(--muted)">${a.ip || '—'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function filterAccesos() {
+  const q = document.getElementById('searchAccesos').value.toLowerCase();
+  const filtered = allAccesos.filter(a =>
+    (a.nombre || '').toLowerCase().includes(q) ||
+    (a.code || '').toLowerCase().includes(q) ||
+    (a.ip || '').toLowerCase().includes(q)
+  );
+  renderAccesos(filtered);
+}
+
+// ── ACCIONES ──
+async function resetFingerprint(code) {
+  if (!confirm(`¿Resetear fingerprint de ${code}?`)) return;
+  const pass = sessionStorage.getItem(ADMIN_KEY);
+  try {
+    await fetch('/api/get-codes-fit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
+      body: JSON.stringify({ action: 'reset_fingerprint', code })
+    });
+    toast('Fingerprint reseteado ✓');
+    loadAll();
+  } catch(e) { toast('Error', 'error'); }
+}
+
+async function toggleActivo(code, activo) {
+  const pass = sessionStorage.getItem(ADMIN_KEY);
+  try {
+    await fetch('/api/get-codes-fit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
+      body: JSON.stringify({ action: 'toggle_activo', code, activo: !activo })
+    });
+    toast((activo ? 'Código desactivado' : 'Código activado') + ' ✓');
+    loadAll();
+  } catch(e) { toast('Error', 'error'); }
+}
+
+async function deleteCode(code) {
+  if (!confirm(`¿Eliminar código ${code}? Esta acción no se puede deshacer.`)) return;
+  const pass = sessionStorage.getItem(ADMIN_KEY);
+  try {
+    await fetch('/api/get-codes-fit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
+      body: JSON.stringify({ action: 'delete', code })
+    });
+    toast('Código eliminado ✓');
+    loadAll();
+  } catch(e) { toast('Error', 'error'); }
+}
+
+// ── EXPORT CSV ──
+function exportCSV() {
+  const headers = ['Nombre', 'Email', 'Código', 'Plan', 'Expira', 'Dispositivo', 'OS', 'Navegador', 'IP', 'Registro'];
+  const rows = allUsuarios.map(u => [
+    u.nombre || '', u.email || '', u.code || '', u.plan || '',
+    u.expira || '', u.dispositivo?.tipo || '', u.dispositivo?.os || '',
+    u.dispositivo?.browser || '', u.dispositivo?.ip || '', u.fecha_registro || ''
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'fitai-usuarios-' + new Date().toISOString().split('T')[0] + '.csv';
+  a.click();
+}
+
+// ── TOAST ──
+function toast(msg, type = 'ok') {
+  const t = document.createElement('div');
+  t.className = 'toast' + (type === 'error' ? ' error' : '');
+  t.textContent = msg;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ── INIT ──
+document.getElementById('adminPass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkLogin();
+});
+
+// Auto-login si hay sesión
+if (sessionStorage.getItem(ADMIN_KEY)) {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('adminScreen').style.display = 'block';
+  loadAll();
+  setInterval(loadAll, 30000);
+}
+</script>
+</body>
+</html>
