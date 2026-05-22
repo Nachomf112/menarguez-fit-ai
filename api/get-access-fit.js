@@ -27,16 +27,16 @@ export default async function handler(req, res) {
 
     if (body.action === 'delete' && typeof body.idx === 'number') {
       try {
-        // Marcar como DELETED y luego limpiar
-        await fetch(`${kvUrl}/lset/fitai:accesos/${body.idx}/DELETED`, {
+        const placeholder = '__DELETED__';
+        await fetch(`${kvUrl}/lset/fitai:accesos/${body.idx}`, {
           method: 'POST',
           headers: kvHeaders,
-          body: JSON.stringify('DELETED')
+          body: JSON.stringify(placeholder)
         });
-        await fetch(`${kvUrl}/lrem/fitai:accesos/1/DELETED`, {
+        await fetch(`${kvUrl}/lrem/fitai:accesos/1`, {
           method: 'POST',
           headers: kvHeaders,
-          body: JSON.stringify('DELETED')
+          body: JSON.stringify(placeholder)
         });
         return res.status(200).json({ ok: true });
       } catch (err) {
