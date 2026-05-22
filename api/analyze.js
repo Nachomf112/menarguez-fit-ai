@@ -59,7 +59,8 @@ export default async function handler(req, res) {
     // ── EXTRAER userCode Y module DEL BODY ────────────────────
     // Ni userCode ni module son campos de Claude — los extraemos
     // antes de reenviar el body a Anthropic.
-    const { userCode, module: moduleName, ...claudeBody } = req.body;
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const { userCode, module: moduleName, ...claudeBody } = body;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
