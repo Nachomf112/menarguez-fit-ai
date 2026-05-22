@@ -24,12 +24,13 @@ export default async function handler(req, res) {
     const raw = data.result || [];
 
     const accesos = raw.map(item => {
-      try {
-        let parsed = item;
-        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-        return parsed;
-      } catch { return null; }
-    }).filter(Boolean);
+  try {
+    let parsed = item;
+    if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+    if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+    return parsed;
+  } catch { return null; }
+}).filter(Boolean);
 
     return res.status(200).json({ accesos });
   } catch (err) {
