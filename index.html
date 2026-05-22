@@ -1674,11 +1674,9 @@ function renderWeekBars() {
 document.addEventListener('DOMContentLoaded', () => {
   $('fitCode').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
   $('topbarDate') && ($('topbarDate').textContent = today());
-});
-
-// Cerrar modal al pulsar fuera
-$('modalSugeridor').addEventListener('click', e => {
-  if (e.target === $('modalSugeridor')) $('modalSugeridor').classList.remove('open');
+  $('modalSugeridor').addEventListener('click', e => {
+    if (e.target === $('modalSugeridor')) $('modalSugeridor').classList.remove('open');
+  });
 });
 </script>
 </body>
