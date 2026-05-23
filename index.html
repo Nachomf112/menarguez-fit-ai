@@ -1629,6 +1629,7 @@ Formato: lista clara con desayuno/almuerzo/cena/snacks según lo que falte. Incl
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        userCode: currentUser?.code || '',
         model: 'claude-sonnet-4-20250514',
         max_tokens: 400,
         messages: [{ role: 'user', content: prompt }]
