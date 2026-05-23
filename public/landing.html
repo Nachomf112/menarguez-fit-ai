@@ -1146,7 +1146,8 @@ document.getElementById('accessBtn').addEventListener('click', function(e) {
   const code = document.getElementById('codeInput').value.trim();
   if (code) {
     e.preventDefault();
-    window.location.href = 'https://fit.menarguez-ia.com/app?code=' + encodeURIComponent(code.toUpperCase());
+    localStorage.setItem('fitai_code_prefill', code.toUpperCase());
+    window.location.href = 'https://fit.menarguez-ia.com/app';
   }
 });
 
