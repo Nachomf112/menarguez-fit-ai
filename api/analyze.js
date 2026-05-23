@@ -68,6 +68,7 @@ export default async function handler(req, res) {
           codeData.usos_usados = usosUsados + 1;
 
           // ── GEOLOCALIZACIÓN POR IP ──────────────────────────
+          // FIX v3.1: se intenta siempre que no haya ubicación (no solo en el primer uso)
           if (!codeData.ubicacion && ip !== 'unknown') {
             try {
               const geoResp = await fetch(`https://ipapi.co/${ip}/json/`);
