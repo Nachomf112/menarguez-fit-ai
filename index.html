@@ -1472,10 +1472,11 @@ Si son varios alimentos, calcula el total. Sé preciso con las calorías reales,
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
-        messages: [{ role: 'user', content: prompt }]
-      })
+  userCode: currentUser?.code || '',
+  model: 'claude-sonnet-4-20250514',
+  max_tokens: 300,
+  messages: [{ role: 'user', content: prompt }]
+})
     });
 
     const data = await resp.json();
