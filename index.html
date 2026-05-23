@@ -1591,6 +1591,7 @@ Dame una recomendación breve, directa y motivadora en 2-3 frases máximo. Menci
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        userCode: currentUser?.code || '',
         model: 'claude-sonnet-4-20250514',
         max_tokens: 150,
         messages: [{ role: 'user', content: prompt }]
