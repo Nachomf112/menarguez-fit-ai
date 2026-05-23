@@ -134,6 +134,11 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
   box-shadow: 0 0 0 4px rgba(74,222,128,.1);
 }
 
+/* Date input styling */
+.field input[type="date"] {
+  color-scheme: dark;
+}
+
 .btn-primary {
   width: 100%;
   padding: 16px;
@@ -943,9 +948,10 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
   </div>
 
   <div class="row2">
+    <!-- FIX: fecha de nacimiento en lugar de edad -->
     <div class="field">
-      <label>Edad</label>
-      <input id="pEdad" type="number" placeholder="30" min="10" max="100">
+      <label>Fecha de nacimiento</label>
+      <input id="pFechaNac" type="date" max="">
     </div>
     <div class="field select-wrap">
       <label>Sexo</label>
@@ -1177,6 +1183,7 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
         <div class="perfil-row"><span class="perfil-key">Nombre</span><span class="perfil-val" id="pInfoNombre">—</span></div>
         <div class="perfil-row"><span class="perfil-key">Peso</span><span class="perfil-val" id="pInfoPeso">—</span></div>
         <div class="perfil-row"><span class="perfil-key">Altura</span><span class="perfil-val" id="pInfoAltura">—</span></div>
+        <div class="perfil-row"><span class="perfil-key">Fecha de nacimiento</span><span class="perfil-val" id="pInfoFechaNac">—</span></div>
         <div class="perfil-row"><span class="perfil-key">Edad</span><span class="perfil-val" id="pInfoEdad">—</span></div>
         <div class="perfil-row"><span class="perfil-key">Objetivo</span><span class="perfil-val" id="pInfoObj">—</span></div>
         <div class="perfil-row"><span class="perfil-key">TDEE</span><span class="perfil-val" id="pInfoTdee">—</span></div>
@@ -1252,7 +1259,18 @@ function setScreen(s) {
   });
 }
 
+// ── FECHA NACIMIENTO → EDAD ──
+function calcularEdad(fechaNac) {
+  const hoy = new Date();
+  const nac = new Date(fechaNac);
+  let edad = hoy.getFullYear() - nac.getFullYear();
+  const m = hoy.getMonth() - nac.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--;
+  return edad;
+}
+
 // ── LOGIN ──
+// FIX: persistir currentUser en localStorage para no perder sesión
 async function login() {
   const code = $('fitCode').value.trim().toUpperCase();
   const btn = $('loginBtn');
@@ -1262,9 +1280,9 @@ async function login() {
   btn.innerHTML = '<span class="spinner"></span> Verificando...';
   err.classList.remove('show');
 
-  // Para demo: acepta DEMO-2026 o FIT-DEMO directamente
   if (code === 'DEMO-2026' || code === 'FIT-DEMO') {
     currentUser = { nombre: 'Usuario Demo', plan: 'free', code };
+    localStorage.setItem('fitai_user', JSON.stringify(currentUser));
     btn.disabled = false;
     btn.textContent = 'Acceder →';
     checkProfile();
@@ -1286,6 +1304,7 @@ async function login() {
       return;
     }
     currentUser = data;
+    localStorage.setItem('fitai_user', JSON.stringify(currentUser));
     checkProfile();
   } catch (e) {
     err.textContent = 'Error de conexión.';
@@ -1324,14 +1343,20 @@ async function saveProfile() {
   const nombre = $('pNombre').value.trim();
   const peso = parseFloat($('pPeso').value);
   const altura = parseFloat($('pAltura').value);
-  const edad = parseInt($('pEdad').value);
+  const fechaNac = $('pFechaNac').value;
   const sexo = $('pSexo').value;
   const actividad = $('pActividad').value;
   const objBtn = document.querySelector('.obj-btn.active');
   const objetivo = objBtn ? objBtn.dataset.obj : 'adelgazar';
 
-  if (!nombre || !peso || !altura || !edad) {
+  if (!nombre || !peso || !altura || !fechaNac) {
     toast('Completa todos los campos obligatorios.');
+    return;
+  }
+
+  const edad = calcularEdad(fechaNac);
+  if (edad < 10 || edad > 100) {
+    toast('Introduce una fecha de nacimiento válida.');
     return;
   }
 
@@ -1353,12 +1378,12 @@ async function saveProfile() {
   const ajustes = { adelgazar: -400, musculo: +300, definir: -200 };
   const objKcal = tdee + ajustes[objetivo];
 
-  // Macros objetivo
   const protObj = Math.round(peso * 2);
   const fatObj = Math.round(objKcal * 0.25 / 9);
   const carbObj = Math.round((objKcal - protObj * 4 - fatObj * 9) / 4);
 
-  perfil = { nombre, peso, altura, edad, sexo, actividad, objetivo, tdee, objKcal, protObj, fatObj, carbObj };
+  // FIX: guardamos fechaNac para recalcular edad automáticamente en el futuro
+  perfil = { nombre, peso, altura, fechaNac, edad, sexo, actividad, objetivo, tdee, objKcal, protObj, fatObj, carbObj };
   localStorage.setItem('fitai_perfil', JSON.stringify(perfil));
 
   btn.disabled = false;
@@ -1374,13 +1399,20 @@ function resetProfile() {
   if (!confirm('¿Resetear perfil y datos del día?')) return;
   localStorage.removeItem('fitai_perfil');
   localStorage.removeItem('fitai_comidas');
+  localStorage.removeItem('fitai_user');
   perfil = null;
+  currentUser = null;
   comidas = { desayuno: [], almuerzo: [], cena: [], snack: [] };
-  setScreen('profile');
+  setScreen('login');
 }
 
 // ── DASHBOARD ──
 function initDashboard() {
+  // Recalcular edad por si ha cambiado desde que se guardó el perfil
+  if (perfil.fechaNac) {
+    perfil.edad = calcularEdad(perfil.fechaNac);
+  }
+
   $('topbarDate').textContent = today();
   $('calObjetivo').textContent = perfil.objKcal + ' kcal';
   $('weekObj').textContent = perfil.objKcal + ' kcal';
@@ -1389,6 +1421,9 @@ function initDashboard() {
   $('pInfoNombre').textContent = perfil.nombre;
   $('pInfoPeso').textContent = perfil.peso + ' kg';
   $('pInfoAltura').textContent = perfil.altura + ' cm';
+  $('pInfoFechaNac').textContent = perfil.fechaNac
+    ? new Date(perfil.fechaNac + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+    : (perfil.edad ? '—' : '—');
   $('pInfoEdad').textContent = perfil.edad + ' años';
   const objLabels = { adelgazar: '🔥 Adelgazar', musculo: '💪 Ganar músculo', definir: '⚡ Definir' };
   $('pInfoObj').textContent = objLabels[perfil.objetivo] || perfil.objetivo;
@@ -1419,7 +1454,6 @@ function loadComidas() {
     if (data.fecha === hoy) {
       comidas = data.comidas;
     } else {
-      // Nuevo día — guardar historial
       if (data.comidas) {
         const hist = JSON.parse(localStorage.getItem('fitai_historial') || '[]');
         hist.push({ fecha: data.fecha, total: calcTotal().kcal });
@@ -1472,14 +1506,21 @@ Si son varios alimentos, calcula el total. Sé preciso con las calorías reales,
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-  userCode: currentUser?.code || '',
-  model: 'claude-sonnet-4-20250514',
-  max_tokens: 300,
-  messages: [{ role: 'user', content: prompt }]
-})
+        userCode: currentUser?.code || '',
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        messages: [{ role: 'user', content: prompt }]
+      })
     });
 
     const data = await resp.json();
+
+    // Manejo error límite alcanzado
+    if (data.error === 'limite_alcanzado') {
+      toast('⚠️ ' + data.message);
+      return;
+    }
+
     const raw = data.content.map(i => i.text || '').join('').replace(/```json|```/g, '').trim();
     const r = JSON.parse(raw);
 
@@ -1598,6 +1639,7 @@ Dame una recomendación breve, directa y motivadora en 2-3 frases máximo. Menci
       })
     });
     const data = await resp.json();
+    if (data.error === 'limite_alcanzado') return;
     const text = data.content.map(i => i.text || '').join('').trim();
     $('iaRecomendacion').textContent = text;
     $('iaRecomendacion').classList.remove('muted');
@@ -1636,6 +1678,10 @@ Formato: lista clara con desayuno/almuerzo/cena/snacks según lo que falte. Incl
       })
     });
     const data = await resp.json();
+    if (data.error === 'limite_alcanzado') {
+      $('sugeridorOutput').textContent = data.message;
+      return;
+    }
     const text = data.content.map(i => i.text || '').join('').trim();
     $('sugeridorOutput').innerHTML = text.replace(/\n/g, '<br>');
   } catch (e) {
@@ -1650,8 +1696,8 @@ function renderWeekBars() {
   const obj = perfil?.objKcal || 2000;
 
   const dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-  const today = new Date().getDay();
-  const todayIdx = today === 0 ? 6 : today - 1;
+  const todayDay = new Date().getDay();
+  const todayIdx = todayDay === 0 ? 6 : todayDay - 1;
 
   const data = dias.map((d, i) => {
     if (i === todayIdx) return { dia: d, kcal, hoy: true };
@@ -1685,6 +1731,18 @@ function renderWeekBars() {
 
 // ── INIT ──
 document.addEventListener('DOMContentLoaded', () => {
+  // FIX: restaurar sesión automáticamente si existe en localStorage
+  const savedUser = localStorage.getItem('fitai_user');
+  if (savedUser) {
+    currentUser = JSON.parse(savedUser);
+    checkProfile();
+  }
+
+  // Limitar fecha máxima en el campo fecha nacimiento a hoy
+  const maxDate = new Date().toISOString().split('T')[0];
+  const pFechaNac = $('pFechaNac');
+  if (pFechaNac) pFechaNac.setAttribute('max', maxDate);
+
   $('loginBtn').addEventListener('click', login);
   $('fitCode').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
   $('topbarDate') && ($('topbarDate').textContent = today());
