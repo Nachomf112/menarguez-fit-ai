@@ -1731,6 +1731,12 @@ function renderWeekBars() {
 
 // ── INIT ──
 document.addEventListener('DOMContentLoaded', () => {
+  // Prellenar código si viene desde la landing
+const urlParams = new URLSearchParams(window.location.search);
+const codeFromUrl = urlParams.get('code');
+if (codeFromUrl && $('fitCode')) {
+  $('fitCode').value = codeFromUrl.toUpperCase();
+}
   // FIX: restaurar sesión automáticamente si existe en localStorage
   const savedUser = localStorage.getItem('fitai_user');
   if (savedUser) {
