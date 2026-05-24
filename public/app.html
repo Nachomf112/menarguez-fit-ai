@@ -1757,8 +1757,17 @@ async function generarSugerencia() {
 Le quedan ${restante} kcal para hoy. Su objetivo de proteína es ${perfil?.protObj || 150}g/día.
 Ya lleva consumidas: ${kcal} kcal.
 
-Genera un menú completo para el resto del día (o el día completo si son pocas las consumidas) que se ajuste a las calorías restantes.
-Formato: lista clara con desayuno/almuerzo/cena/snacks según lo que falte. Incluye calorías aproximadas de cada comida. Máximo 150 palabras. Sin introducciones. Responde siempre en español. Sin markdown ni asteriscos.`;
+const prompt = `Eres un nutricionista experto. El usuario quiere ${objLabels[perfil?.objetivo || 'adelgazar']}.
+
+Le quedan ${restante} kcal para hoy. Objetivo proteína: ${perfil?.protObj || 150}g/día. Ya lleva: ${kcal} kcal.
+
+Genera un menú para el resto del día ajustado a las calorías restantes.
+FORMATO OBLIGATORIO (sin excepciones):
+- Una línea por comida: "Cena: pollo a la plancha + ensalada (180 kcal)"
+- Máximo 5 líneas
+- Sin introducciones, sin explicaciones, sin consejos adicionales
+- Sin asteriscos ni markdown de ningún tipo
+- Solo el menú, nada más`;
 
   try {
     const resp = await fetch(API_URL, {
