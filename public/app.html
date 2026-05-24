@@ -1262,7 +1262,9 @@ function toast(msg) {
   $('toasts').appendChild(t);
   setTimeout(() => t.remove(), 3000);
 }
-
+function showUpgradeModal() {
+  document.getElementById('modalUpgrade').classList.add('open');
+}
 function setScreen(s) {
   document.documentElement.dataset.screen = s;
   const screens = { login: 'screenLogin', profile: 'screenProfile', dashboard: 'screenDashboard' };
