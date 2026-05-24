@@ -1588,6 +1588,7 @@ Si son varios alimentos, calcula el total. Sé preciso con las calorías reales,
     renderMeal(meal);
     updateUI();
     updateRecomendacion();
+    updateUsageBanner();
     input.value = '';
     toast('✅ ' + r.nombre + ' — ' + r.kcal + ' kcal');
 
@@ -1607,6 +1608,7 @@ function removeFood(meal, idx) {
   renderMeal(meal);
   updateUI();
   updateRecomendacion();
+  updateUsageBanner();
 }
 
 function renderMeal(meal) {
