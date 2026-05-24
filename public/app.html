@@ -1699,7 +1699,8 @@ Formato: lista clara con desayuno/almuerzo/cena/snacks según lo que falte. Incl
     });
     const data = await resp.json();
     if (data.error === 'limite_alcanzado') {
-      $('sugeridorOutput').textContent = data.message;
+      showUpgradeModal();
+      $('modalSugeridor').classList.remove('open');
       return;
     }
     const text = data.content.map(i => i.text || '').join('').trim();
