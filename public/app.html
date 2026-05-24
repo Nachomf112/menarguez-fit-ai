@@ -1537,9 +1537,9 @@ Si son varios alimentos, calcula el total. Sé preciso con las calorías reales,
 
     // Manejo error límite alcanzado
     if (data.error === 'limite_alcanzado') {
-      toast('⚠️ ' + data.message);
+      showUpgradeModal();
       return;
-    }
+    } 
 
     const raw = data.content.map(i => i.text || '').join('').replace(/```json|```/g, '').trim();
     const r = JSON.parse(raw);
