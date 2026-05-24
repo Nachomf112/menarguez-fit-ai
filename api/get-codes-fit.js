@@ -58,6 +58,23 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true });
       }
 
+      // ── EXTEND: actualizar fecha de expiración ──────────────
+      if (action === 'extend') {
+        const getResp = await fetch(`${kvUrl}/get/code:${code}`, { headers: kvHeaders });
+        const getData = await getResp.json();
+        let raw = getData.result;
+        if (Array.isArray(raw)) raw = raw[0];
+        if (typeof raw === 'string') raw = JSON.parse(raw);
+        if (typeof raw === 'string') raw = JSON.parse(raw);
+        raw.expira = body.expira;
+        raw.activo = true; // reactivar si estaba expirado
+        await fetch(`${kvUrl}/set/code:${code}`, {
+          method: 'POST', headers: kvHeaders,
+          body: JSON.stringify(raw)
+        });
+        return res.status(200).json({ ok: true });
+      }
+
       if (action === 'delete') {
         await fetch(`${kvUrl}/del/code:${code}`, { method: 'POST', headers: kvHeaders });
         return res.status(200).json({ ok: true });
