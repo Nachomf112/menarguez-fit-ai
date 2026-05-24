@@ -28,7 +28,7 @@ export default async function handler(req, res) {
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     const { userCode, ...claudeBody } = body;
-
+    let usos_usados_updated = undefined;
     // ── CONTROL DE USOS POR CÓDIGO ───────────────────────────
     if (userCode && process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
       const kvUrl = process.env.KV_REST_API_URL;
@@ -66,6 +66,7 @@ export default async function handler(req, res) {
 
           // ── INCREMENTAR USOS ────────────────────────────────
           codeData.usos_usados = usosUsados + 1;
+          usos_usados_updated = codeData.usos_usados;
 
           // ── GEOLOCALIZACIÓN POR IP ──────────────────────────
           // FIX v3.1: se intenta siempre que no haya ubicación (no solo en el primer uso)
@@ -124,7 +125,7 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    data.usos_usados = codeData ? codeData.usos_usados : undefined;
+    if (usos_usados_updated !== undefined) data.usos_usados = usos_usados_updated;
     return res.status(200).json(data);
 
   } catch (err) {
