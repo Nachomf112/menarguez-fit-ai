@@ -84,7 +84,17 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: err.message });
     }
   }
-
+  // ── GET: stats diarias ──────────────────────────────────────
+  if (req.method === 'GET' && req.query?.stats === 'daily') {
+    try {
+      const resp = await fetch(`${kvUrl}/hgetall/fitai:stats:daily`, { headers: kvHeaders });
+      const data = await resp.json();
+      const statsDaily = data.result || {};
+      return res.status(200).json({ statsDaily });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
   // ── GET: listar todos los códigos FIT ───────────────────────
   try {
     const keysResp = await fetch(`${kvUrl}/keys/code:FIT-*`, { headers: kvHeaders });
