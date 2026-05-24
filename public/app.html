@@ -1583,6 +1583,10 @@ Si son varios alimentos, calcula el total. Sé preciso con las calorías reales,
 
     const raw = data.content.map(i => i.text || '').join('').replace(/```json|```/g, '').trim();
     const r = JSON.parse(raw);
+    if (data.usos_usados !== undefined) {
+      currentUser.usos_usados = data.usos_usados;
+      localStorage.setItem('fitai_user', JSON.stringify(currentUser));
+    }
 
     comidas[meal].push(r);
     saveComidas();
