@@ -71,7 +71,7 @@ export default async function handler(req, res) {
       objetivo: fields.objetivo || '',
       plan: 'free',
       modulos: ['all'],
-      usos_max: 100,
+      usos_max: 30,
       usos_usados: 0,
       expira,
       activo: true,
