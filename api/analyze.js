@@ -124,6 +124,7 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
+    data.usos_usados = codeData ? codeData.usos_usados : undefined;
     return res.status(200).json(data);
 
   } catch (err) {
