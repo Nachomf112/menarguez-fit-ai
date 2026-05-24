@@ -1638,7 +1638,35 @@ function calcTotal() {
   });
   return { kcal: Math.round(kcal), prot: Math.round(prot), carb: Math.round(carb), fat: Math.round(fat) };
 }
+// ── BANNER USOS RESTANTES ──
+function updateUsageBanner() {
+  const banner = $('usageBanner');
+  const bannerText = $('usageBannerText');
+  const bannerIcon = $('usageBannerIcon');
+  if (!banner) return;
 
+  if (!currentUser || !currentUser.code) return;
+  if (currentUser.code === 'DEMO-2026' || currentUser.code === 'FIT-DEMO') return;
+  if (currentUser.plan === 'pro') return;
+
+  const usados = currentUser.usos_usados || 0;
+  const max = currentUser.usos_max || 30;
+  const restantes = max - usados;
+
+  banner.className = 'usage-banner';
+
+  if (restantes <= 0) {
+    return;
+  } else if (restantes <= 3) {
+    banner.classList.add('critical');
+    bannerIcon.textContent = '🔴';
+    bannerText.textContent = `Solo te quedan ${restantes} análisis gratuito${restantes === 1 ? '' : 's'}.`;
+  } else if (restantes <= 10) {
+    banner.classList.add('warn');
+    bannerIcon.textContent = '⚠️';
+    bannerText.textContent = `Te quedan ${restantes} de ${max} análisis gratuitos.`;
+  }
+}
 function updateUI() {
   ['desayuno', 'almuerzo', 'cena', 'snack'].forEach(m => renderMeal(m));
 
