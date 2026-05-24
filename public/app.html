@@ -441,7 +441,39 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
 .progress-fill.over {
   background: linear-gradient(90deg, var(--red), var(--orange));
 }
-
+/* BANNER USOS RESTANTES */
+.usage-banner {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.usage-banner.warn {
+  background: rgba(250,204,21,.08);
+  border: 1px solid rgba(250,204,21,.25);
+  color: var(--yellow);
+  display: flex;
+}
+.usage-banner.critical {
+  background: rgba(248,113,113,.08);
+  border: 1px solid rgba(248,113,113,.25);
+  color: var(--red);
+  display: flex;
+}
+.usage-banner-icon { font-size: 16px; flex-shrink: 0; }
+.usage-banner-text { flex: 1; }
+.usage-banner-link {
+  color: inherit;
+  text-decoration: underline;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
 .progress-labels {
   display: flex;
   justify-content: space-between;
