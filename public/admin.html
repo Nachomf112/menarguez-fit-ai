@@ -238,6 +238,14 @@ button { cursor: pointer; font: inherit; }
   margin-bottom: 24px;
 }
 
+/* NUEVA FILA DE CHARTS — usos por día ocupa toda la anchura */
+.charts-grid-full {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
 .chart-card {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -270,6 +278,8 @@ button { cursor: pointer; font: inherit; }
   align-items: center;
   padding: 16px 20px;
   border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .table-header h3 {
@@ -278,7 +288,7 @@ button { cursor: pointer; font: inherit; }
   font-weight: 700;
 }
 
-.table-actions { display: flex; gap: 8px; }
+.table-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
 .search-input {
   background: var(--bg2);
@@ -292,6 +302,26 @@ button { cursor: pointer; font: inherit; }
 }
 
 .search-input:focus { border-color: var(--green); }
+
+/* FILTRO PLAN */
+.filter-select {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b9e7a'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.filter-select:focus { border-color: var(--green); }
+.filter-select option { background: var(--panel); }
 
 table { width: 100%; border-collapse: collapse; }
 
@@ -333,6 +363,35 @@ tr:hover td { background: rgba(74,222,128,.03); }
 .badge-mobile { background: rgba(251,146,60,.1); color: var(--orange); }
 .badge-desktop { background: rgba(96,165,250,.1); color: var(--blue); }
 .badge-tablet { background: rgba(163,230,53,.1); color: var(--lime); }
+
+/* ALERTA USOS */
+.usos-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(251,146,60,.12);
+  border: 1px solid rgba(251,146,60,.3);
+  border-radius: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--orange);
+  margin-top: 4px;
+}
+
+.usos-critical {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(248,113,113,.12);
+  border: 1px solid rgba(248,113,113,.3);
+  border-radius: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--red);
+  margin-top: 4px;
+}
 
 .device-icon { font-size: 16px; margin-right: 4px; }
 
@@ -665,6 +724,16 @@ tr:hover td { background: rgba(74,222,128,.03); }
         </div>
       </div>
     </div>
+
+    <!-- NUEVA GRÁFICA: USOS POR DÍA -->
+    <div class="charts-grid-full">
+      <div class="chart-card">
+        <h3>🔥 Análisis IA por día (últimos 14 días)</h3>
+        <div class="chart-wrap" style="height:180px">
+          <canvas id="chartUsosDia"></canvas>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- TAB USUARIOS -->
@@ -673,6 +742,13 @@ tr:hover td { background: rgba(74,222,128,.03); }
       <div class="table-header">
         <h3>👥 Usuarios registrados</h3>
         <div class="table-actions">
+          <!-- FILTRO POR PLAN -->
+          <select class="filter-select" id="filterPlan" onchange="filterUsuarios()">
+            <option value="todos">Todos los planes</option>
+            <option value="free">Solo Free</option>
+            <option value="pro">Solo Pro</option>
+            <option value="cancelled">Cancelados</option>
+          </select>
           <input class="search-input" id="searchUsuarios" placeholder="🔍 Buscar nombre, email, código..." oninput="filterUsuarios()">
         </div>
       </div>
@@ -740,7 +816,7 @@ tr:hover td { background: rgba(74,222,128,.03); }
 const ADMIN_KEY = 'fitai_admin_auth';
 let allUsuarios = [];
 let allAccesos = [];
-let chartDias, chartPlanes, chartDisp;
+let chartDias, chartPlanes, chartDisp, chartUsosDia;
 
 // ── MODAL EXTENDER ──
 let modalCurrentCode = null;
@@ -791,12 +867,9 @@ function onCustomDays() {
 
 function updateNuevaFecha() {
   if (!modalDiasSeleccionados) return;
-
-  // Calcular nueva fecha desde hoy si está expirado, o desde la fecha actual si está activo
   const base = modalCurrentExpira && new Date(modalCurrentExpira) > new Date()
     ? new Date(modalCurrentExpira)
     : new Date();
-
   base.setDate(base.getDate() + modalDiasSeleccionados);
   const nueva = base.toISOString().split('T')[0];
   document.getElementById('modalExpiraNueva').textContent = nueva;
@@ -805,17 +878,14 @@ function updateNuevaFecha() {
 
 async function confirmExtender() {
   if (!modalCurrentCode || !modalDiasSeleccionados) return;
-
   const btn = document.getElementById('btnConfirmExtend');
   btn.disabled = true;
   btn.textContent = 'Guardando...';
-
   const base = modalCurrentExpira && new Date(modalCurrentExpira) > new Date()
     ? new Date(modalCurrentExpira)
     : new Date();
   base.setDate(base.getDate() + modalDiasSeleccionados);
   const nuevaExpira = base.toISOString().split('T')[0];
-
   const pass = sessionStorage.getItem(ADMIN_KEY);
   try {
     await fetch('/api/get-codes-fit', {
@@ -833,7 +903,6 @@ async function confirmExtender() {
   }
 }
 
-// Cerrar modal al hacer clic fuera
 document.getElementById('modalExtender').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
@@ -843,7 +912,6 @@ async function checkLogin() {
   const pass = document.getElementById('adminPass').value;
   const err = document.getElementById('loginError');
   if (!pass) return;
-
   try {
     const resp = await fetch('/api/admin-auth-fit', {
       method: 'POST',
@@ -886,13 +954,11 @@ function showTab(tab) {
 async function loadAll() {
   const pass = sessionStorage.getItem(ADMIN_KEY);
   if (!pass) return;
-
   try {
     const [codesResp, accessResp] = await Promise.all([
       fetch('/api/get-codes-fit', { headers: { 'x-admin-pass': pass } }),
       fetch('/api/get-access-fit', { headers: { 'x-admin-pass': pass } })
     ]);
-
     if (codesResp.ok) {
       const data = await codesResp.json();
       allUsuarios = data.codes || [];
@@ -900,17 +966,72 @@ async function loadAll() {
       updateStats(allUsuarios);
       updateCharts(allUsuarios);
     }
-
     if (accessResp.ok) {
       const data = await accessResp.json();
       allAccesos = data.accesos || [];
       renderAccesos(allAccesos);
     }
-
+    // Cargar stats de usos por día
+    await loadUsosDia(pass);
     document.getElementById('lastUpdate').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-ES');
   } catch(e) {
     toast('Error cargando datos', 'error');
   }
+}
+
+// ── USOS POR DÍA (fitai:stats:daily) ──
+async function loadUsosDia(pass) {
+  try {
+    const resp = await fetch('/api/get-codes-fit?stats=daily', {
+      headers: { 'x-admin-pass': pass }
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const statsDaily = data.statsDaily || {};
+    updateChartUsosDia(statsDaily);
+  } catch(e) {
+    console.warn('No se pudieron cargar stats diarias:', e.message);
+  }
+}
+
+function updateChartUsosDia(statsDaily) {
+  const labels = [];
+  const values = [];
+
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    // Formato YYYY-MM-DD
+    const key = d.toISOString().split('T')[0];
+    const label = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+    labels.push(label);
+    values.push(parseInt(statsDaily[key] || 0));
+  }
+
+  if (chartUsosDia) chartUsosDia.destroy();
+  chartUsosDia = new Chart(document.getElementById('chartUsosDia'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Análisis IA',
+        data: values,
+        backgroundColor: values.map((v, i) => i === 13 ? 'rgba(163,230,53,.8)' : 'rgba(74,222,128,.5)'),
+        borderColor: values.map((v, i) => i === 13 ? '#a3e635' : '#4ade80'),
+        borderWidth: 1,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#6b9e7a', font: { size: 10 } }, grid: { color: 'rgba(42,74,50,.4)' } },
+        y: { ticks: { color: '#6b9e7a', stepSize: 1 }, grid: { color: 'rgba(42,74,50,.4)' }, beginAtZero: true }
+      }
+    }
+  });
 }
 
 // ── STATS ──
@@ -1000,13 +1121,26 @@ function renderUsuarios(users) {
     const tipoIcon = tipo === 'móvil' ? '📱' : tipo === 'tablet' ? '📲' : '💻';
     const tipoBadge = tipo === 'móvil' ? 'badge-mobile' : tipo === 'tablet' ? 'badge-tablet' : 'badge-desktop';
 
+    // ── ALERTA USOS (solo Free) ──
+    const usosUsados = u.usos_usados || 0;
+    const usosMax = u.plan === 'pro' ? 0 : 30;
+    let usosAlerta = '';
+    if (u.plan === 'free' && usosMax > 0) {
+      const pct = (usosUsados / usosMax) * 100;
+      if (pct >= 100) {
+        usosAlerta = `<div class="usos-critical">🔴 Límite alcanzado</div>`;
+      } else if (pct >= 80) {
+        usosAlerta = `<div class="usos-warn">⚠️ ${Math.round(pct)}% usado</div>`;
+      }
+    }
+
     return `<tr>
       <td>
         <div style="font-weight:600">${u.nombre || '—'}</div>
         <div style="font-size:11px;color:var(--muted)">${u.email || '—'}</div>
       </td>
       <td><span class="mono" style="color:var(--green)">${u.code || '—'}</span></td>
-      <td><span class="badge ${u.plan === 'pro' ? 'badge-pro' : 'badge-free'}">${(u.plan || 'free').toUpperCase()}</span></td>
+      <td><span class="badge ${u.plan === 'pro' ? 'badge-pro' : u.plan === 'cancelled' ? 'badge-expired' : 'badge-free'}">${(u.plan || 'free').toUpperCase()}</span></td>
       <td><span class="badge ${expirado ? 'badge-expired' : 'badge-active'}">${expirado ? 'Expirado' : 'Activo'}</span></td>
       <td style="font-size:12px;color:${expirado ? 'var(--red)' : 'var(--muted)'}">${u.expira || '—'}</td>
       <td>
@@ -1017,8 +1151,9 @@ function renderUsuarios(users) {
       <td><span class="mono" style="font-size:11px;color:var(--muted)">${dispositivo.ip || '—'}</span></td>
       <td style="font-size:12px;color:var(--muted)">${u.fecha_registro || '—'}</td>
       <td>
-        <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--green)">${u.usos_usados || 0}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--green)">${usosUsados}</span>
         <span style="font-size:11px;color:var(--muted)"> / ${u.plan === 'pro' ? '∞' : '30'}</span>
+        ${usosAlerta}
       </td>
       <td style="font-size:12px;color:var(--muted)">
         ${u.ubicacion ? `${u.ubicacion.ciudad}, ${u.ubicacion.pais}` : '—'}
@@ -1033,13 +1168,21 @@ function renderUsuarios(users) {
   }).join('');
 }
 
+// ── FILTRO CON PLAN ──
 function filterUsuarios() {
   const q = document.getElementById('searchUsuarios').value.toLowerCase();
-  const filtered = allUsuarios.filter(u =>
+  const plan = document.getElementById('filterPlan').value;
+
+  let filtered = allUsuarios.filter(u =>
     (u.nombre || '').toLowerCase().includes(q) ||
     (u.email || '').toLowerCase().includes(q) ||
     (u.code || '').toLowerCase().includes(q)
   );
+
+  if (plan !== 'todos') {
+    filtered = filtered.filter(u => (u.plan || 'free') === plan);
+  }
+
   renderUsuarios(filtered);
 }
 
@@ -1050,7 +1193,6 @@ function renderAccesos(accesos) {
     tbody.innerHTML = '<tr class="loading-row"><td colspan="9" style="color:var(--muted)">No hay accesos registrados.</td></tr>';
     return;
   }
-
   tbody.innerHTML = accesos.map((a, idx) => {
     const tipo = a.tipo || '—';
     const tipoIcon = tipo === 'móvil' ? '📱' : tipo === 'tablet' ? '📲' : '💻';
