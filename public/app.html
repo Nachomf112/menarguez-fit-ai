@@ -1342,6 +1342,7 @@ async function login() {
     localStorage.setItem('fitai_user', JSON.stringify(currentUser));
     btn.disabled = false;
     btn.textContent = 'Acceder →';
+    updateUsageBanner();
     checkProfile();
     return;
   }
@@ -1362,6 +1363,7 @@ async function login() {
     }
     currentUser = data;
     localStorage.setItem('fitai_user', JSON.stringify(currentUser));
+    updateUsageBanner();
     checkProfile();
   } catch (e) {
     err.textContent = 'Error de conexión.';
