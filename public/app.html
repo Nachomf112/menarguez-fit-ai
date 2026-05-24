@@ -1776,5 +1776,25 @@ if (codeFromUrl && $('fitCode')) {
   });
 });
 </script>
+<!-- MODAL UPGRADE PRO -->
+<div class="modal-backdrop" id="modalUpgrade">
+  <div class="modal">
+    <div class="upgrade-icon">🚀</div>
+    <div class="upgrade-title">Has alcanzado tu límite</div>
+    <div class="upgrade-sub">Has usado tus 30 análisis gratuitos. Actualiza a Pro para continuar sin límites.</div>
+    <div class="upgrade-features">
+      <div class="upgrade-feature"><span class="upgrade-feature-icon">♾️</span><div class="upgrade-feature-title">Ilimitado</div><div class="upgrade-feature-desc">Sin límite de análisis</div></div>
+      <div class="upgrade-feature"><span class="upgrade-feature-icon">🤖</span><div class="upgrade-feature-title">IA sin restricciones</div><div class="upgrade-feature-desc">Recomendaciones y menús</div></div>
+      <div class="upgrade-feature"><span class="upgrade-feature-icon">📊</span><div class="upgrade-feature-title">Estadísticas</div><div class="upgrade-feature-desc">Historial completo</div></div>
+      <div class="upgrade-feature"><span class="upgrade-feature-icon">🎯</span><div class="upgrade-feature-title">Tu objetivo</div><div class="upgrade-feature-desc">Plan 100% personalizado</div></div>
+    </div>
+    <div class="upgrade-price">
+      <div class="upgrade-price-amount">4,99€ <span>/mes</span></div>
+      <div class="upgrade-price-desc">Sin permanencia · Cancela cuando quieras</div>
+    </div>
+    <a href="https://buy.stripe.com/fZu28scTa1vJ4Ak5w3cjS02" target="_blank" class="btn-upgrade">⚡ Actualizar a Pro ahora →</a>
+    <button class="btn-upgrade-cancel" onclick="document.getElementById('modalUpgrade').classList.remove('open')">Ahora no</button>
+  </div>
+</div>
 </body>
 </html>
