@@ -1754,11 +1754,6 @@ async function generarSugerencia() {
 
   const prompt = `Eres un nutricionista experto. El usuario quiere ${objLabels[perfil?.objetivo || 'adelgazar']}.
 
-Le quedan ${restante} kcal para hoy. Su objetivo de proteína es ${perfil?.protObj || 150}g/día.
-Ya lleva consumidas: ${kcal} kcal.
-
-const prompt = `Eres un nutricionista experto. El usuario quiere ${objLabels[perfil?.objetivo || 'adelgazar']}.
-
 Le quedan ${restante} kcal para hoy. Objetivo proteína: ${perfil?.protObj || 150}g/día. Ya lleva: ${kcal} kcal.
 
 Genera un menú para el resto del día ajustado a las calorías restantes.
