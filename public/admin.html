@@ -596,6 +596,172 @@ tr:hover td { background: rgba(74,222,128,.03); }
   .charts-grid { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* MODAL INFORME */
+#modalInforme .modal {
+  width: min(780px, 95vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 32px;
+}
+
+.informe-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.informe-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  margin-bottom: 4px;
+}
+
+.informe-date { font-size: 12px; color: var(--muted); }
+
+.informe-export-btns { display: flex; gap: 8px; }
+
+.btn-export {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-export:hover { border-color: var(--green); color: var(--green); }
+
+.informe-section {
+  margin-bottom: 28px;
+}
+
+.informe-section-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.informe-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.informe-kpi {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  text-align: center;
+}
+
+.informe-kpi-value {
+  font-family: 'Syne', sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  color: var(--green);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.informe-kpi-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.informe-usuarios-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.informe-usuario-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.informe-usuario-info { flex: 1; }
+.informe-usuario-name { font-weight: 600; font-size: 13px; }
+.informe-usuario-email { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.informe-usuario-usos {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.informe-usos-bar {
+  width: 100px;
+  height: 6px;
+  background: var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.informe-usos-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.informe-semana-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.informe-dia {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.informe-dia-label { font-size: 10px; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+.informe-dia-value {
+  font-family: 'Syne', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--green);
+}
+
+.informe-empty { color: var(--muted); font-size: 13px; padding: 16px 0; }
+
+@media print {
+  body * { visibility: hidden; }
+  #modalInforme, #modalInforme * { visibility: visible; }
+  #modalInforme { position: fixed; inset: 0; background: #fff !important; color: #000 !important; }
+  .informe-export-btns, .btn-cancel { display: none !important; }
+}
 </style>
 </head>
 <body>
@@ -659,7 +825,62 @@ tr:hover td { background: rgba(74,222,128,.03); }
       <div class="badge-live">LIVE</div>
       <button class="btn-outline" onclick="loadAll()">↻ Refresh</button>
       <button class="btn-outline" onclick="exportCSV()">↓ CSV</button>
+      <button class="btn-outline" style="border-color:rgba(163,230,53,.4);color:var(--lime)" onclick="openInforme()">📄 Informe</button>
       <button class="btn-outline" onclick="logout()">Salir</button>
+    </div>
+  </div>
+
+  <!-- MODAL INFORME EJECUTIVO -->
+  <div class="modal-backdrop" id="modalInforme">
+    <div class="modal">
+      <div class="informe-header">
+        <div>
+          <div class="informe-title">📄 Informe Ejecutivo</div>
+          <div class="informe-date" id="informeDate">—</div>
+        </div>
+        <div class="informe-export-btns">
+          <button class="btn-export" onclick="exportInformeHTML()">⬇ HTML</button>
+          <button class="btn-export" onclick="exportInformePDF()">🖨 PDF</button>
+          <button class="btn-cancel" style="padding:8px 16px;font-size:13px" onclick="document.getElementById('modalInforme').classList.remove('open')">✕ Cerrar</button>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="informe-section">
+        <div class="informe-section-title">📊 KPIs principales</div>
+        <div class="informe-kpis">
+          <div class="informe-kpi">
+            <div class="informe-kpi-value" id="iTotal">—</div>
+            <div class="informe-kpi-label">Usuarios totales</div>
+          </div>
+          <div class="informe-kpi">
+            <div class="informe-kpi-value" id="iPro" style="color:var(--lime)">—</div>
+            <div class="informe-kpi-label">Usuarios Pro</div>
+          </div>
+          <div class="informe-kpi">
+            <div class="informe-kpi-value" id="iConv" style="color:var(--yellow)">—</div>
+            <div class="informe-kpi-label">Conversión</div>
+          </div>
+          <div class="informe-kpi">
+            <div class="informe-kpi-value" id="iIngresos" style="color:var(--green)">—</div>
+            <div class="informe-kpi-label">MRR estimado</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- USUARIOS CERCA DEL LÍMITE -->
+      <div class="informe-section">
+        <div class="informe-section-title">⚠️ Usuarios cerca del límite (≥80%)</div>
+        <div class="informe-usuarios-lista" id="informeLimite">
+          <div class="informe-empty">Cargando...</div>
+        </div>
+      </div>
+
+      <!-- EVOLUCIÓN SEMANAL -->
+      <div class="informe-section">
+        <div class="informe-section-title">📅 Evolución semanal (últimos 7 días)</div>
+        <div class="informe-semana-grid" id="informeSemana"></div>
+      </div>
     </div>
   </div>
 
@@ -988,6 +1209,7 @@ async function loadUsosDia(pass) {
     if (!resp.ok) return;
     const data = await resp.json();
     const statsDaily = data.statsDaily || {};
+    window._statsDaily = statsDaily;
     updateChartUsosDia(statsDaily);
   } catch(e) {
     console.warn('No se pudieron cargar stats diarias:', e.message);
@@ -1298,6 +1520,143 @@ function toast(msg, type = 'ok') {
   t.textContent = msg;
   document.getElementById('toasts').appendChild(t);
   setTimeout(() => t.remove(), 3000);
+}
+
+
+// ── INFORME EJECUTIVO ──
+function openInforme() {
+  document.getElementById('modalInforme').classList.add('open');
+  document.getElementById('informeDate').textContent =
+    'Generado: ' + new Date().toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  const users = allUsuarios;
+  const pro = users.filter(u => u.plan === 'pro').length;
+  const total = users.length;
+  const conv = total > 0 ? Math.round((pro / total) * 100) : 0;
+  const mrr = (pro * 4.99).toFixed(2);
+
+  document.getElementById('iTotal').textContent = total;
+  document.getElementById('iPro').textContent = pro;
+  document.getElementById('iConv').textContent = conv + '%';
+  document.getElementById('iIngresos').textContent = mrr + '€';
+
+  // Usuarios cerca del límite (Free ≥80% = ≥24/30)
+  const enLimite = users.filter(u => u.plan === 'free' && (u.usos_usados || 0) >= 24);
+  const limiteEl = document.getElementById('informeLimite');
+  if (enLimite.length === 0) {
+    limiteEl.innerHTML = '<div class="informe-empty">No hay usuarios cerca del límite.</div>';
+  } else {
+    limiteEl.innerHTML = enLimite.map(u => {
+      const pct = Math.min(100, Math.round(((u.usos_usados || 0) / 30) * 100));
+      const color = pct >= 100 ? 'var(--red)' : 'var(--orange)';
+      return `<div class="informe-usuario-row">
+        <div class="informe-usuario-info">
+          <div class="informe-usuario-name">${u.nombre || '—'}</div>
+          <div class="informe-usuario-email">${u.email || '—'} · ${u.code || ''}</div>
+        </div>
+        <div class="informe-usuario-usos">
+          <span style="font-family:'DM Mono',monospace;font-size:12px;color:${color};font-weight:700">${u.usos_usados || 0} / 30 (${pct}%)</span>
+          <div class="informe-usos-bar">
+            <div class="informe-usos-fill" style="width:${pct}%;background:${color}"></div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Evolución semanal (últimos 7 días desde statsDaily o contando desde usuarios)
+  const dias = ['L','M','X','J','V','S','D'];
+  const semanaEl = document.getElementById('informeSemana');
+  semanaEl.innerHTML = Array.from({length: 7}, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const key = d.toISOString().split('T')[0];
+    const label = dias[d.getDay() === 0 ? 6 : d.getDay() - 1];
+    const val = window._statsDaily ? (parseInt(window._statsDaily[key] || 0)) : '—';
+    const isToday = i === 6;
+    return `<div class="informe-dia" style="${isToday ? 'border-color:var(--green)' : ''}">
+      <div class="informe-dia-label">${label}<br><span style="font-weight:400;color:var(--muted)">${d.getDate()}/${d.getMonth()+1}</span></div>
+      <div class="informe-dia-value" style="${isToday ? 'color:var(--lime)' : ''}">${val}</div>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('modalInforme').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+
+function exportInformePDF() {
+  window.print();
+}
+
+function exportInformeHTML() {
+  const fecha = new Date().toISOString().split('T')[0];
+  const users = allUsuarios;
+  const pro = users.filter(u => u.plan === 'pro').length;
+  const total = users.length;
+  const conv = total > 0 ? Math.round((pro / total) * 100) : 0;
+  const mrr = (pro * 4.99).toFixed(2);
+  const enLimite = users.filter(u => u.plan === 'free' && (u.usos_usados || 0) >= 24);
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Informe Ejecutivo · Menarguez Fit AI · ${fecha}</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
+  h1 { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+  .date { color: #666; font-size: 13px; margin-bottom: 32px; }
+  .kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 32px; }
+  .kpi { background: #f5f5f5; border-radius: 12px; padding: 16px; text-align: center; }
+  .kpi-val { font-size: 28px; font-weight: 800; color: #16a34a; }
+  .kpi-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: .05em; }
+  h2 { font-size: 15px; font-weight: 700; margin: 24px 0 12px; color: #16a34a; }
+  .user-row { display: flex; justify-content: space-between; padding: 10px 14px; background: #f9f9f9; border-radius: 8px; margin-bottom: 6px; font-size: 13px; }
+  .user-pct { font-weight: 700; color: #f97316; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; padding: 8px 10px; background: #f0f0f0; font-weight: 700; }
+  td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+  .footer { margin-top: 40px; font-size: 11px; color: #999; text-align: center; }
+</style>
+</head>
+<body>
+<h1>📄 Informe Ejecutivo · Menarguez Fit AI</h1>
+<div class="date">Generado: ${new Date().toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
+
+<h2>📊 KPIs principales</h2>
+<div class="kpis">
+  <div class="kpi"><div class="kpi-val">${total}</div><div class="kpi-label">Usuarios totales</div></div>
+  <div class="kpi"><div class="kpi-val">${pro}</div><div class="kpi-label">Usuarios Pro</div></div>
+  <div class="kpi"><div class="kpi-val">${conv}%</div><div class="kpi-label">Conversión</div></div>
+  <div class="kpi"><div class="kpi-val">${mrr}€</div><div class="kpi-label">MRR estimado</div></div>
+</div>
+
+<h2>⚠️ Usuarios cerca del límite (≥80%)</h2>
+${enLimite.length === 0
+  ? '<p style="color:#999">No hay usuarios cerca del límite.</p>'
+  : enLimite.map(u => {
+      const pct = Math.min(100, Math.round(((u.usos_usados||0)/30)*100));
+      return `<div class="user-row"><span><strong>${u.nombre||'—'}</strong> · ${u.email||'—'} · ${u.code||''}</span><span class="user-pct">${u.usos_usados||0}/30 (${pct}%)</span></div>`;
+    }).join('')
+}
+
+<h2>👥 Todos los usuarios</h2>
+<table>
+  <thead><tr><th>Nombre</th><th>Email</th><th>Código</th><th>Plan</th><th>Usos</th><th>Expira</th></tr></thead>
+  <tbody>
+    ${users.map(u => `<tr><td>${u.nombre||'—'}</td><td>${u.email||'—'}</td><td>${u.code||'—'}</td><td>${(u.plan||'free').toUpperCase()}</td><td>${u.usos_usados||0}/${u.plan==='pro'?'∞':'30'}</td><td>${u.expira||'—'}</td></tr>`).join('')}
+  </tbody>
+</table>
+
+<div class="footer">Menarguez Fit AI · fit.menarguez-ia.com · ${fecha}</div>
+</body>
+</html>`;
+
+  const a = document.createElement('a');
+  a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+  a.download = 'informe-fitai-' + fecha + '.html';
+  a.click();
 }
 
 // ── INIT ──
