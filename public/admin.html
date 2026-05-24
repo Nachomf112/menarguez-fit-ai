@@ -346,10 +346,12 @@ tr:hover td { background: rgba(74,222,128,.03); }
   font-weight: 600;
   transition: all .2s;
   margin-right: 4px;
+  margin-bottom: 4px;
 }
 
 .action-btn:hover { border-color: var(--green); color: var(--green); }
 .action-btn.danger:hover { border-color: var(--red); color: var(--red); }
+.action-btn.extend:hover { border-color: var(--yellow); color: var(--yellow); }
 
 .mono { font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: .05em; }
 
@@ -396,6 +398,140 @@ tr:hover td { background: rgba(74,222,128,.03); }
   to { opacity: 1; transform: translateX(0); }
 }
 
+/* MODAL EXTENDER */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(4px);
+  display: none;
+  place-items: center;
+}
+
+.modal-backdrop.open { display: grid; }
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 28px;
+  width: min(400px, 90vw);
+  animation: modalIn .2s ease;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal h3 {
+  font-family: 'Syne', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.modal p { color: var(--muted); font-size: 13px; margin-bottom: 20px; line-height: 1.6; }
+
+.modal-code {
+  font-family: 'DM Mono', monospace;
+  color: var(--green);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.days-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.day-btn {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all .2s;
+  text-align: center;
+}
+
+.day-btn:hover, .day-btn.active {
+  background: rgba(74,222,128,.12);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.custom-days-wrap {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.custom-days-wrap input {
+  flex: 1;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  outline: none;
+}
+
+.custom-days-wrap input:focus { border-color: var(--green); }
+.custom-days-wrap label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+
+.modal-expira-info {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.modal-expira-info strong { color: var(--text); }
+
+.modal-actions { display: flex; gap: 10px; }
+
+.btn-cancel {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 14px;
+  transition: all .2s;
+}
+
+.btn-cancel:hover { border-color: var(--green); color: var(--text); }
+
+.btn-confirm {
+  flex: 2;
+  padding: 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--green3), var(--green2));
+  border: none;
+  color: #fff;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  transition: opacity .2s;
+}
+
+.btn-confirm:hover { opacity: .9; }
+.btn-confirm:disabled { opacity: .5; cursor: not-allowed; }
+
 /* RESPONSIVE */
 @media (max-width: 900px) {
   .charts-grid { grid-template-columns: 1fr; }
@@ -406,6 +542,36 @@ tr:hover td { background: rgba(74,222,128,.03); }
 <body>
 
 <div class="toast-wrap" id="toasts"></div>
+
+<!-- MODAL EXTENDER -->
+<div class="modal-backdrop" id="modalExtender">
+  <div class="modal">
+    <h3>📅 Extender acceso</h3>
+    <p>Código: <span class="modal-code" id="modalCode">—</span></p>
+
+    <div class="modal-expira-info" id="modalExpiraInfo">
+      Expira actual: <strong id="modalExpiraActual">—</strong><br>
+      Nueva fecha: <strong id="modalExpiraNueva" style="color:var(--green)">—</strong>
+    </div>
+
+    <div class="days-grid">
+      <button class="day-btn" onclick="selectDays(1)">+1 día</button>
+      <button class="day-btn" onclick="selectDays(7)">+7 días</button>
+      <button class="day-btn" onclick="selectDays(15)">+15 días</button>
+      <button class="day-btn" onclick="selectDays(30)">+30 días</button>
+    </div>
+
+    <div class="custom-days-wrap">
+      <label>Días personalizados:</label>
+      <input type="number" id="customDays" min="1" max="365" placeholder="ej: 45" oninput="onCustomDays()">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-confirm" id="btnConfirmExtend" onclick="confirmExtender()">Extender acceso →</button>
+    </div>
+  </div>
+</div>
 
 <!-- ══ LOGIN ══ -->
 <div id="loginScreen">
@@ -446,7 +612,6 @@ tr:hover td { background: rgba(74,222,128,.03); }
 
   <!-- TAB DASHBOARD -->
   <div class="content" id="tabDashboard">
-
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">Usuarios totales</div>
@@ -500,7 +665,6 @@ tr:hover td { background: rgba(74,222,128,.03); }
         </div>
       </div>
     </div>
-
   </div>
 
   <!-- TAB USUARIOS -->
@@ -562,7 +726,7 @@ tr:hover td { background: rgba(74,222,128,.03); }
             </tr>
           </thead>
           <tbody id="tablaAccesos">
-            <tr class="loading-row"><td colspan="8"><span class="spinner"></span> Cargando accesos...</td></tr>
+            <tr class="loading-row"><td colspan="9"><span class="spinner"></span> Cargando accesos...</td></tr>
           </tbody>
         </table>
       </div>
@@ -577,6 +741,102 @@ const ADMIN_KEY = 'fitai_admin_auth';
 let allUsuarios = [];
 let allAccesos = [];
 let chartDias, chartPlanes, chartDisp;
+
+// ── MODAL EXTENDER ──
+let modalCurrentCode = null;
+let modalCurrentExpira = null;
+let modalDiasSeleccionados = 0;
+
+function openExtender(code, expiraActual) {
+  modalCurrentCode = code;
+  modalCurrentExpira = expiraActual;
+  modalDiasSeleccionados = 0;
+
+  document.getElementById('modalCode').textContent = code;
+  document.getElementById('modalExpiraActual').textContent = expiraActual || 'Sin fecha';
+  document.getElementById('modalExpiraNueva').textContent = '—';
+  document.getElementById('customDays').value = '';
+  document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btnConfirmExtend').disabled = true;
+  document.getElementById('modalExtender').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalExtender').classList.remove('open');
+  modalCurrentCode = null;
+  modalCurrentExpira = null;
+  modalDiasSeleccionados = 0;
+}
+
+function selectDays(days) {
+  modalDiasSeleccionados = days;
+  document.getElementById('customDays').value = '';
+  document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  updateNuevaFecha();
+}
+
+function onCustomDays() {
+  const val = parseInt(document.getElementById('customDays').value);
+  document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
+  if (val > 0) {
+    modalDiasSeleccionados = val;
+    updateNuevaFecha();
+  } else {
+    modalDiasSeleccionados = 0;
+    document.getElementById('modalExpiraNueva').textContent = '—';
+    document.getElementById('btnConfirmExtend').disabled = true;
+  }
+}
+
+function updateNuevaFecha() {
+  if (!modalDiasSeleccionados) return;
+
+  // Calcular nueva fecha desde hoy si está expirado, o desde la fecha actual si está activo
+  const base = modalCurrentExpira && new Date(modalCurrentExpira) > new Date()
+    ? new Date(modalCurrentExpira)
+    : new Date();
+
+  base.setDate(base.getDate() + modalDiasSeleccionados);
+  const nueva = base.toISOString().split('T')[0];
+  document.getElementById('modalExpiraNueva').textContent = nueva;
+  document.getElementById('btnConfirmExtend').disabled = false;
+}
+
+async function confirmExtender() {
+  if (!modalCurrentCode || !modalDiasSeleccionados) return;
+
+  const btn = document.getElementById('btnConfirmExtend');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  const base = modalCurrentExpira && new Date(modalCurrentExpira) > new Date()
+    ? new Date(modalCurrentExpira)
+    : new Date();
+  base.setDate(base.getDate() + modalDiasSeleccionados);
+  const nuevaExpira = base.toISOString().split('T')[0];
+
+  const pass = sessionStorage.getItem(ADMIN_KEY);
+  try {
+    await fetch('/api/get-codes-fit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
+      body: JSON.stringify({ action: 'extend', code: modalCurrentCode, expira: nuevaExpira })
+    });
+    toast(`✅ ${modalCurrentCode} extendido hasta ${nuevaExpira}`);
+    closeModal();
+    loadAll();
+  } catch(e) {
+    toast('Error al extender', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Extender acceso →';
+  }
+}
+
+// Cerrar modal al hacer clic fuera
+document.getElementById('modalExtender').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
 
 // ── LOGIN ──
 async function checkLogin() {
@@ -673,7 +933,6 @@ function updateStats(users) {
 
 // ── CHARTS ──
 function updateCharts(users) {
-  // Últimos 7 días
   const dias = [];
   const counts = [];
   for (let i = 6; i >= 0; i--) {
@@ -695,7 +954,6 @@ function updateCharts(users) {
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#6b9e7a' }, grid: { color: 'rgba(42,74,50,.4)' } }, y: { ticks: { color: '#6b9e7a', stepSize: 1 }, grid: { color: 'rgba(42,74,50,.4)' } } } }
   });
 
-  // Planes
   const free = users.filter(u => u.plan === 'free').length;
   const pro = users.filter(u => u.plan === 'pro').length;
 
@@ -709,7 +967,6 @@ function updateCharts(users) {
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#6b9e7a', font: { size: 12 } } } } }
   });
 
-  // Dispositivos
   const mobile = users.filter(u => u.dispositivo?.tipo === 'móvil').length;
   const desktop = users.filter(u => u.dispositivo?.tipo === 'escritorio').length;
   const tablet = users.filter(u => u.dispositivo?.tipo === 'tablet').length;
@@ -729,7 +986,7 @@ function updateCharts(users) {
 function renderUsuarios(users) {
   const tbody = document.getElementById('tablaUsuarios');
   if (!users.length) {
-    tbody.innerHTML = '<tr class="loading-row"><td colspan="9" style="color:var(--muted)">No hay usuarios registrados.</td></tr>';
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="11" style="color:var(--muted)">No hay usuarios registrados.</td></tr>';
     return;
   }
 
@@ -758,16 +1015,17 @@ function renderUsuarios(users) {
         <div style="font-size:10px;color:var(--muted);margin-top:3px">${dispositivo.os || ''} · ${dispositivo.browser || ''}</div>
       </td>
       <td><span class="mono" style="font-size:11px;color:var(--muted)">${dispositivo.ip || '—'}</span></td>
+      <td style="font-size:12px;color:var(--muted)">${u.fecha_registro || '—'}</td>
       <td>
-  <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--green)">${u.usos_usados || 0}</span>
-  <span style="font-size:11px;color:var(--muted)"> / ${u.plan === 'pro' ? '∞' : '30'}</span>
-</td>
-<td style="font-size:12px;color:var(--muted)">
-  ${u.ubicacion ? `${u.ubicacion.ciudad}, ${u.ubicacion.pais}` : '—'}
-</td>
-<td style="font-size:12px;color:var(--muted)">${u.fecha_registro || '—'}</td>
+        <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--green)">${u.usos_usados || 0}</span>
+        <span style="font-size:11px;color:var(--muted)"> / ${u.plan === 'pro' ? '∞' : '30'}</span>
+      </td>
+      <td style="font-size:12px;color:var(--muted)">
+        ${u.ubicacion ? `${u.ubicacion.ciudad}, ${u.ubicacion.pais}` : '—'}
+      </td>
       <td>
         <button class="action-btn" onclick="resetFingerprint('${u.code}')">Reset FP</button>
+        <button class="action-btn extend" onclick="openExtender('${u.code}', '${u.expira || ''}')">📅 Extender</button>
         <button class="action-btn" onclick="toggleActivo('${u.code}', ${u.activo})">${u.activo ? 'Desactivar' : 'Activar'}</button>
         <button class="action-btn danger" onclick="deleteCode('${u.code}')">✕</button>
       </td>
@@ -805,7 +1063,7 @@ function renderAccesos(accesos) {
       <td style="font-size:12px;color:var(--muted)">${a.os || '—'}</td>
       <td style="font-size:12px;color:var(--muted)">${a.browser || '—'}</td>
       <td><span class="mono" style="font-size:11px;color:var(--muted)">${a.ip || '—'}</span></td>
-    <td><button class="action-btn danger" onclick="deleteAcceso(${idx})">✕</button></td>
+      <td><button class="action-btn danger" onclick="deleteAcceso(${idx})">✕</button></td>
     </tr>`;
   }).join('');
 }
@@ -819,6 +1077,7 @@ function filterAccesos() {
   );
   renderAccesos(filtered);
 }
+
 async function deleteAcceso(idx) {
   if (!confirm('¿Eliminar este acceso?')) return;
   const pass = sessionStorage.getItem(ADMIN_KEY);
@@ -832,6 +1091,7 @@ async function deleteAcceso(idx) {
     loadAll();
   } catch(e) { toast('Error', 'error'); }
 }
+
 // ── ACCIONES ──
 async function resetFingerprint(code) {
   if (!confirm(`¿Resetear fingerprint de ${code}?`)) return;
@@ -903,7 +1163,6 @@ document.getElementById('adminPass').addEventListener('keydown', e => {
   if (e.key === 'Enter') checkLogin();
 });
 
-// Auto-login si hay sesión
 if (sessionStorage.getItem(ADMIN_KEY)) {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('adminScreen').style.display = 'block';
