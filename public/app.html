@@ -1752,17 +1752,7 @@ async function generarSugerencia() {
 
   $('sugeridorOutput').innerHTML = '<span class="spinner"></span> Generando menú personalizado<span class="loading-dots"></span>';
 
-  const prompt = `Eres un nutricionista experto. El usuario quiere ${objLabels[perfil?.objetivo || 'adelgazar']}.
-
-Le quedan ${restante} kcal para hoy. Objetivo proteína: ${perfil?.protObj || 150}g/día. Ya lleva: ${kcal} kcal.
-
-Genera un menú para el resto del día ajustado a las calorías restantes.
-FORMATO OBLIGATORIO (sin excepciones):
-- Una línea por comida: "Cena: pollo a la plancha + ensalada (180 kcal)"
-- Máximo 5 líneas
-- Sin introducciones, sin explicaciones, sin consejos adicionales
-- Sin asteriscos ni markdown de ningún tipo
-- Solo el menú, nada más`;
+  const prompt = `Eres un nutricionista experto. El usuario quiere ${objLabels[perfil?.objetivo || 'adelgazar']}. Le quedan ${restante} kcal para hoy. Objetivo proteina: ${perfil?.protObj || 150}g/dia. Ya lleva: ${kcal} kcal. Genera un menu para el resto del dia ajustado a las calorias restantes. FORMATO: una linea por comida con nombre y calorias entre parentesis. Maximo 5 lineas. Sin introducciones ni explicaciones. Solo el menu.`;
 
   try {
     const resp = await fetch(API_URL, {
