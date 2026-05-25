@@ -1237,7 +1237,21 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
           </div>
         </div>
       </div>
-
+      <!-- EJERCICIO -->
+<div class="ejercicio-card">
+  <div class="ejercicio-header">
+    <div class="ejercicio-icon">🏃</div>
+    <div class="ejercicio-title">Ejercicio hoy</div>
+  </div>
+  <div>
+    <div class="kcal-quemadas"><span id="kcalQuemadas">0</span> <span style="font-size:14px;font-weight:400;color:var(--muted)">kcal quemadas</span></div>
+  </div>
+  <div class="ejercicio-items" id="itemsEjercicio"></div>
+  <div class="add-food-form">
+    <input class="add-food-input" id="inputEjercicio" placeholder="ej: 30 min corriendo, 1h pesas" onkeydown="if(event.key==='Enter')addEjercicio()">
+    <button class="add-food-btn" style="background:linear-gradient(135deg,#1d4ed8,#3b82f6)" onclick="addEjercicio()">Añadir</button>
+  </div>
+</div>
       <!-- IA RECOMENDACIÓN -->
       <div class="ia-card">
         <div class="ia-header">
