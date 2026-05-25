@@ -1745,7 +1745,9 @@ function updateUI() {
   ['desayuno', 'almuerzo', 'cena', 'snack'].forEach(m => renderMeal(m));
 
   const { kcal, prot, carb, fat } = calcTotal();
+  const totalQuemadas = ejercicios.reduce(function(s, e) { return s + (e.kcal || 0); }, 0);
   const obj = perfil ? perfil.objKcal : 2000;
+  const objReal = obj + totalQuemadas;
   const pct = Math.min(Math.round((kcal / obj) * 100), 100);
   const restante = obj - kcal;
 
