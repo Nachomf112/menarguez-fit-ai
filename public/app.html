@@ -1426,10 +1426,17 @@ async function login() {
       btn.textContent = 'Acceder →';
       return;
     }
-    currentUser = data;
-    localStorage.setItem('fitai_user', JSON.stringify(currentUser));
-    updateUsageBanner();
-    checkProfile();
+    const previousUser = localStorage.getItem('fitai_user');
+const previousCode = previousUser ? JSON.parse(previousUser).code : null;
+currentUser = data;
+localStorage.setItem('fitai_user', JSON.stringify(currentUser));
+if (previousCode && previousCode !== data.code) {
+  localStorage.removeItem('fitai_perfil');
+  localStorage.removeItem('fitai_comidas');
+  localStorage.removeItem('fitai_ejercicios');
+}
+updateUsageBanner();
+checkProfile();
   } catch (e) {
     err.textContent = 'Error de conexión.';
     err.classList.add('show');
