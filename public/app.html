@@ -1446,14 +1446,18 @@ function getFingerprint() {
     screen.width + 'x' + screen.height,
     screen.colorDepth,
     navigator.language,
-    navigator.languages ? navigator.languages.join(',') : '',
-    new Date().getTimezoneOffset(),
+    navigator.platform,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
     navigator.hardwareConcurrency || '',
-    navigator.deviceMemory || ''
+    navigator.cookieEnabled
   ].join('|');
   let hash = 0;
-  for (let i = 0; i < data.length; i++) { hash = ((hash << 5) - hash) + data.charCodeAt(i); hash = hash & hash; }
-  return Math.abs(hash).toString(16);
+  for (let i = 0; i < data.length; i++) {
+    const char = data.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(16).padStart(8, '0');
 }
 
 // ── PROFILE ──
