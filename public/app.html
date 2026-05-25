@@ -1426,17 +1426,10 @@ async function login() {
       btn.textContent = 'Acceder →';
       return;
     }
-    const previousUser = localStorage.getItem('fitai_user');
-const previousCode = previousUser ? JSON.parse(previousUser).code : null;
-currentUser = data;
-localStorage.setItem('fitai_user', JSON.stringify(currentUser));
-if (previousCode && previousCode !== data.code) {
-  localStorage.removeItem('fitai_perfil');
-  localStorage.removeItem('fitai_comidas');
-  localStorage.removeItem('fitai_ejercicios');
-}
-updateUsageBanner();
-checkProfile();
+    currentUser = data;
+    localStorage.setItem('fitai_user', JSON.stringify(currentUser));
+    updateUsageBanner();
+    checkProfile();
   } catch (e) {
     err.textContent = 'Error de conexión.';
     err.classList.add('show');
@@ -1453,8 +1446,13 @@ function getFingerprint() {
 }
 
 // ── PROFILE ──
+function storageKey(key) {
+  const code = currentUser ? currentUser.code : 'guest';
+  return key + '_' + code;
+}
+
 function checkProfile() {
-  const saved = localStorage.getItem('fitai_perfil');
+  const saved = localStorage.getItem(storageKey('fitai_perfil'));
   if (saved) {
     perfil = JSON.parse(saved);
     loadComidas();
@@ -1516,7 +1514,7 @@ async function saveProfile() {
 
   // FIX: guardamos fechaNac para recalcular edad automáticamente en el futuro
   perfil = { nombre, peso, altura, fechaNac, edad, sexo, actividad, objetivo, tdee, objKcal, protObj, fatObj, carbObj };
-  localStorage.setItem('fitai_perfil', JSON.stringify(perfil));
+  localStorage.setItem(storageKey('fitai_perfil'), JSON.stringify(perfil));
 
   btn.disabled = false;
   btn.textContent = 'Calcular mi plan →';
@@ -1530,8 +1528,8 @@ async function saveProfile() {
 
 function resetProfile() {
   if (!confirm('¿Resetear perfil y datos del día?')) return;
-  localStorage.removeItem('fitai_perfil');
-  localStorage.removeItem('fitai_comidas');
+  localStorage.removeItem(storageKey('fitai_perfil'));
+  localStorage.removeItem(storageKey('fitai_comidas'));
   localStorage.removeItem('fitai_user');
   perfil = null;
   currentUser = null;
@@ -1581,7 +1579,7 @@ function showTab(tab) {
 
 // ── COMIDAS ──
 function loadComidas() {
-  const saved = localStorage.getItem('fitai_comidas');
+  const saved = localStorage.getItem(storageKey('fitai_comidas'));
   if (saved) {
     const data = JSON.parse(saved);
     const hoy = new Date().toDateString();
@@ -1589,9 +1587,9 @@ function loadComidas() {
       comidas = data.comidas;
     } else {
       if (data.comidas) {
-        const hist = JSON.parse(localStorage.getItem('fitai_historial') || '[]');
+        const hist = JSON.parse(localStorage.getItem(storageKey('fitai_historial')) || '[]');
         hist.push({ fecha: data.fecha, total: calcTotal().kcal });
-        localStorage.setItem('fitai_historial', JSON.stringify(hist.slice(-7)));
+        localStorage.setItem(storageKey('fitai_historial'), JSON.stringify(hist.slice(-7)));
       }
       comidas = { desayuno: [], almuerzo: [], cena: [], snack: [] };
     }
@@ -1599,7 +1597,7 @@ function loadComidas() {
 }
 
 function saveComidas() {
-  localStorage.setItem('fitai_comidas', JSON.stringify({
+  localStorage.setItem(storageKey('fitai_comidas'), JSON.stringify({
     fecha: new Date().toDateString(),
     comidas
   }));
@@ -1891,14 +1889,14 @@ function renderEjercicios() {
 }
 
 function saveEjercicios() {
-  localStorage.setItem('fitai_ejercicios', JSON.stringify({
+  localStorage.setItem(storageKey('fitai_ejercicios'), JSON.stringify({
     fecha: new Date().toDateString(),
     ejercicios
   }));
 }
 
 function loadEjercicios() {
-  const saved = localStorage.getItem('fitai_ejercicios');
+  const saved = localStorage.getItem(storageKey('fitai_ejercicios'));
   if (saved) {
     const data = JSON.parse(saved);
     const hoy = new Date().toDateString();
@@ -1949,7 +1947,7 @@ async function generarSugerencia() {
 
 // ── WEEK BARS ──
 function renderWeekBars() {
-  const hist = JSON.parse(localStorage.getItem('fitai_historial') || '[]');
+  const hist = JSON.parse(localStorage.getItem(storageKey('fitai_historial')) || '[]');
   const { kcal } = calcTotal();
   const obj = perfil?.objKcal || 2000;
 
