@@ -21,17 +21,15 @@ export default async function handler(req, res) {
     'Content-Type': 'application/json'
   };
 
-  const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-  const { code, perfil } = body;
-
-  if (!code) return res.status(400).json({ error: 'Código requerido' });
-  const cleanCode = code.trim().toUpperCase();
-
   // ── POST: guardar perfil ─────────────────────────────────────
   if (req.method === 'POST') {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const { code, perfil } = body;
+    if (!code) return res.status(400).json({ error: 'Código requerido' });
     if (!perfil || typeof perfil !== 'object') {
       return res.status(400).json({ error: 'Perfil requerido' });
     }
+    const cleanCode = code.trim().toUpperCase();
     try {
       await fetch(`${kvUrl}/set/profile:${cleanCode}`, {
         method: 'POST',
@@ -47,7 +45,7 @@ export default async function handler(req, res) {
   // ── GET: leer perfil ─────────────────────────────────────────
   if (req.method === 'GET') {
     const urlObj = new URL(req.url, 'https://fit.menarguez-ia.com');
-        const codeParam = urlObj.searchParams.get('code') || '';
+    const codeParam = urlObj.searchParams.get('code') || '';
     if (!codeParam) return res.status(400).json({ error: 'Código requerido' });
     const cleanParam = codeParam.trim().toUpperCase();
     try {
