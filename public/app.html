@@ -1426,10 +1426,12 @@ async function login() {
       btn.textContent = 'Acceder →';
       return;
     }
+    const previousUser = localStorage.getItem('fitai_user');
+const previousCode = previousUser ? JSON.parse(previousUser).code : null;
     currentUser = data;
     localStorage.setItem('fitai_user', JSON.stringify(currentUser));
     updateUsageBanner();
-    checkProfile();
+    checkProfile(data.perfil || null);
   } catch (e) {
     err.textContent = 'Error de conexión.';
     err.classList.add('show');
@@ -1451,7 +1453,17 @@ function storageKey(key) {
   return key + '_' + code;
 }
 
-function checkProfile() {
+function checkProfile(perfilFromServer) {
+  // Prioridad: perfil de Upstash > localStorage
+  if (perfilFromServer && typeof perfilFromServer === 'object') {
+    perfil = perfilFromServer;
+    localStorage.setItem(storageKey('fitai_perfil'), JSON.stringify(perfil));
+    loadComidas();
+    loadEjercicios();
+    initDashboard();
+    setScreen('dashboard');
+    return;
+  }
   const saved = localStorage.getItem(storageKey('fitai_perfil'));
   if (saved) {
     perfil = JSON.parse(saved);
@@ -1515,6 +1527,13 @@ async function saveProfile() {
   // FIX: guardamos fechaNac para recalcular edad automáticamente en el futuro
   perfil = { nombre, peso, altura, fechaNac, edad, sexo, actividad, objetivo, tdee, objKcal, protObj, fatObj, carbObj };
   localStorage.setItem(storageKey('fitai_perfil'), JSON.stringify(perfil));
+
+  // Guardar perfil en Upstash
+  fetch('/api/save-profile-fit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: currentUser ? currentUser.code : '', perfil })
+  }).catch(e => console.warn('Error guardando perfil:', e));
 
   btn.disabled = false;
   btn.textContent = 'Calcular mi plan →';
@@ -1998,7 +2017,10 @@ if (codeFromUrl && $('fitCode')) {
   const savedUser = localStorage.getItem('fitai_user');
   if (savedUser) {
     currentUser = JSON.parse(savedUser);
-    checkProfile();
+    fetch('/api/save-profile-fit?code=' + encodeURIComponent(currentUser.code))
+      .then(r => r.json())
+      .then(d => checkProfile(d.perfil || null))
+      .catch(() => checkProfile(null));
   }
 
   // Limitar fecha máxima en el campo fecha nacimiento a hoy
