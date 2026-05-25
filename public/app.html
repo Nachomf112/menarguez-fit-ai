@@ -1451,6 +1451,7 @@ function checkProfile() {
   if (saved) {
     perfil = JSON.parse(saved);
     loadComidas();
+    loadEjercicios();
     initDashboard();
     setScreen('dashboard');
   } else {
