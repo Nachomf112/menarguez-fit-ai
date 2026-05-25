@@ -1441,7 +1441,16 @@ const previousCode = previousUser ? JSON.parse(previousUser).code : null;
 }
 
 function getFingerprint() {
-  const data = [navigator.userAgent, screen.width + 'x' + screen.height, navigator.language].join('|');
+  const data = [
+    navigator.userAgent,
+    screen.width + 'x' + screen.height,
+    screen.colorDepth,
+    navigator.language,
+    navigator.languages ? navigator.languages.join(',') : '',
+    new Date().getTimezoneOffset(),
+    navigator.hardwareConcurrency || '',
+    navigator.deviceMemory || ''
+  ].join('|');
   let hash = 0;
   for (let i = 0; i < data.length; i++) { hash = ((hash << 5) - hash) + data.charCodeAt(i); hash = hash & hash; }
   return Math.abs(hash).toString(16);
