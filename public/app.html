@@ -929,6 +929,52 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
   40% { content: '..'; }
   60%, 100% { content: '...'; }
 }
+/* EJERCICIO */
+.ejercicio-card {
+  background: linear-gradient(135deg, rgba(96,165,250,.08), rgba(96,165,250,.03));
+  border: 1px solid rgba(96,165,250,.2);
+  border-radius: 20px;
+  padding: 18px;
+}
+.ejercicio-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.ejercicio-icon {
+  width: 32px; height: 32px;
+  border-radius: 10px;
+  background: rgba(96,165,250,.15);
+  display: grid; place-items: center;
+  font-size: 16px;
+}
+.ejercicio-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px; font-weight: 700;
+  color: var(--blue);
+  letter-spacing: -.01em;
+}
+.kcal-quemadas {
+  font-family: 'Syne', sans-serif;
+  font-size: 28px; font-weight: 800;
+  color: var(--blue);
+  letter-spacing: -.03em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.ejercicio-items { margin-bottom: 12px; }
+.ejercicio-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(96,165,250,.15);
+  font-size: 13px;
+}
+.ejercicio-item:last-child { border-bottom: none; }
+.ejercicio-del { color: var(--red); background: none; border: none; font-size: 16px; padding: 0 0 0 8px; opacity: .6; }
+.ejercicio-del:hover { opacity: 1; }  
 /* MODAL UPGRADE */
 #modalUpgrade .modal { text-align: center; }
 .upgrade-icon { font-size: 48px; margin-bottom: 12px; }
