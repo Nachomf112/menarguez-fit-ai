@@ -1750,8 +1750,8 @@ function updateUI() {
   const totalQuemadas = ejercicios.reduce(function(s, e) { return s + (e.kcal || 0); }, 0);
   const obj = perfil ? perfil.objKcal : 2000;
   const objReal = obj + totalQuemadas;
-  const pct = Math.min(Math.round((kcal / obj) * 100), 100);
-  const restante = obj - kcal;
+  const pct = Math.min(Math.round((kcal / objReal) * 100), 100);
+  const restante = objReal - kcal;
 
   $('calConsum').textContent = kcal;
   $('calObjetivo').textContent = objReal + ' kcal';
