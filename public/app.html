@@ -1804,7 +1804,99 @@ Dame una recomendación breve, directa y motivadora en 2-3 frases máximo. Menci
     $('iaRecomendacion').classList.remove('muted');
   } catch (e) { }
 }
+// ── EJERCICIO ──
+let ejercicios = [];
 
+async function addEjercicio() {
+  const input = $('inputEjercicio');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const btn = input.nextElementSibling;
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  input.disabled = true;
+
+  try {
+    const prompt = 'Eres un experto en fitness. Calcula las calorias quemadas para la siguiente actividad fisica. Responde UNICAMENTE con JSON valido sin markdown: {"actividad":"nombre corto de la actividad","kcal":numero,"duracion":"descripcion de la duracion"} Se preciso con las calorias reales segun el esfuerzo descrito. Actividad: ' + text;
+
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userCode: currentUser ? currentUser.code : '',
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 150,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await resp.json();
+    if (data.error === 'limite_alcanzado') { showUpgradeModal(); return; }
+
+    const raw = data.content.map(function(i) { return i.text || ''; }).join('').replace(/```json|```/g, '').trim();
+    const r = JSON.parse(raw);
+
+    if (data.usos_usados !== undefined) {
+      currentUser.usos_usados = data.usos_usados;
+      localStorage.setItem('fitai_user', JSON.stringify(currentUser));
+    }
+
+    ejercicios.push(r);
+    saveEjercicios();
+    renderEjercicios();
+    updateUI();
+    updateUsageBanner();
+    input.value = '';
+    toast('🏃 ' + r.actividad + ' — ' + r.kcal + ' kcal quemadas');
+
+  } catch (e) {
+    toast('Error al calcular. Intentalo de nuevo.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+    input.disabled = false;
+    input.focus();
+  }
+}
+
+function removeEjercicio(idx) {
+  ejercicios.splice(idx, 1);
+  saveEjercicios();
+  renderEjercicios();
+  updateUI();
+}
+
+function renderEjercicios() {
+  const itemsEl = $('itemsEjercicio');
+  const kcalEl = $('kcalQuemadas');
+  const total = ejercicios.reduce(function(s, e) { return s + (e.kcal || 0); }, 0);
+  kcalEl.textContent = total;
+  itemsEl.innerHTML = ejercicios.map(function(e, idx) {
+    return '<div class="ejercicio-item"><span style="color:var(--text);flex:1">' + e.actividad + ' <span style="font-size:10px;color:var(--muted)">' + (e.duracion || '') + '</span></span><span style="font-family:DM Mono,monospace;font-size:13px;color:var(--blue);font-weight:500;min-width:50px;text-align:right">' + e.kcal + '</span><button class="ejercicio-del" onclick="removeEjercicio(' + idx + ')">×</button></div>';
+  }).join('');
+}
+
+function saveEjercicios() {
+  localStorage.setItem('fitai_ejercicios', JSON.stringify({
+    fecha: new Date().toDateString(),
+    ejercicios
+  }));
+}
+
+function loadEjercicios() {
+  const saved = localStorage.getItem('fitai_ejercicios');
+  if (saved) {
+    const data = JSON.parse(saved);
+    const hoy = new Date().toDateString();
+    if (data.fecha === hoy) {
+      ejercicios = data.ejercicios || [];
+    } else {
+      ejercicios = [];
+    }
+  }
+}
 // ── SUGERIDOR ──
 function openSugeridor() {
   $('modalSugeridor').classList.add('open');
