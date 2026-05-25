@@ -119,7 +119,6 @@ export default async function handler(req, res) {
       });
 
       if (!codeData.fingerprint) {
-        // Primer acceso — vincular dispositivo
         codeData.fingerprint = fingerprint;
         codeData.dispositivo = { os, browser, tipo, ip, fecha: fechaAcceso, hora: horaAcceso };
 
@@ -136,7 +135,6 @@ export default async function handler(req, res) {
         });
 
       } else if (codeData.fingerprint !== fingerprint) {
-        // Dispositivo diferente — bloquear
         const disp = codeData.dispositivo
           ? `${codeData.dispositivo.os} · ${codeData.dispositivo.browser} (${codeData.dispositivo.ip})`
           : 'otro dispositivo';
@@ -146,13 +144,26 @@ export default async function handler(req, res) {
         });
 
       } else {
-        // Mismo dispositivo — registrar acceso en historial
         await fetch(`${url}/lpush/fitai:accesos`, {
           method: 'POST',
           headers,
           body: JSON.stringify(registroAcceso)
         });
       }
+    }
+
+    // ── LEER PERFIL DESDE UPSTASH ────────────────────────────
+    let perfilUpstash = null;
+    try {
+      const perfilResp = await fetch(`${url}/get/profile:${cleanCode}`, { headers });
+      const perfilData = await perfilResp.json();
+      if (perfilData.result) {
+        let p = perfilData.result;
+        if (typeof p === 'string') { try { p = JSON.parse(p); } catch(e) {} }
+        if (p && typeof p === 'object') perfilUpstash = p;
+      }
+    } catch(e) {
+      console.warn('Error leyendo perfil:', e.message);
     }
 
     return res.status(200).json({
@@ -162,7 +173,8 @@ export default async function handler(req, res) {
       plan: codeData.plan || 'free',
       usos_usados: usosUsados,
       usos_max: usosMax,
-      expira: codeData.expira || null
+      expira: codeData.expira || null,
+      perfil: perfilUpstash  // null si no tiene perfil aún
     });
 
   } catch (err) {
