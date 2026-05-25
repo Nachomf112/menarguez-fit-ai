@@ -1823,7 +1823,7 @@ async function addEjercicio() {
   input.disabled = true;
 
   try {
-    const prompt = 'Eres un experto en fitness. Calcula las calorias quemadas para la siguiente actividad fisica. Responde UNICAMENTE con JSON valido sin markdown: {"actividad":"nombre corto de la actividad","kcal":numero,"duracion":"descripcion de la duracion"} Se preciso con las calorias reales segun el esfuerzo descrito. Actividad: ' + text;
+    const prompt = 'Eres un experto en fitness y nutricion deportiva. Calcula las calorias aproximadas quemadas para la siguiente actividad. Devuelve SOLO JSON valido sin markdown ni explicaciones: {"actividad":"nombre descriptivo corto","kcal":numero_entero_positivo,"duracion":"duracion descrita"}. Ejemplo: {"actividad":"Carrera continua","kcal":350,"duracion":"30 minutos"}. IMPORTANTE: kcal debe ser siempre un numero mayor que 0. Actividad: ' + text;
 
     const resp = await fetch(API_URL, {
       method: 'POST',
