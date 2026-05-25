@@ -46,7 +46,8 @@ export default async function handler(req, res) {
 
   // ── GET: leer perfil ─────────────────────────────────────────
   if (req.method === 'GET') {
-    const codeParam = req.query?.code || code;
+    const urlObj = new URL(req.url, 'https://fit.menarguez-ia.com');
+        const codeParam = urlObj.searchParams.get('code') || '';
     if (!codeParam) return res.status(400).json({ error: 'Código requerido' });
     const cleanParam = codeParam.trim().toUpperCase();
     try {
