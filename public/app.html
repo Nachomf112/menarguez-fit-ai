@@ -1499,7 +1499,7 @@ async function saveProfile() {
   const factores = { sedentario: 1.2, ligero: 1.375, moderado: 1.55, activo: 1.725, muy_activo: 1.9 };
   const tdee = Math.round(bmr * factores[actividad]);
 
-  const ajustes = { adelgazar: -400, musculo: +300, definir: -200 };
+  const ajustes = { adelgazar: -400, musculo: +300, definir: -200, mantener: 0 };
   const objKcal = tdee + ajustes[objetivo];
 
   const protObj = Math.round(peso * 2);
