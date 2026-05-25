@@ -1754,6 +1754,7 @@ function updateUI() {
   const restante = obj - kcal;
 
   $('calConsum').textContent = kcal;
+  $('calObjetivo').textContent = objReal + ' kcal';
   $('calBar').style.width = pct + '%';
   $('calBar').className = 'progress-fill' + (pct > 100 ? ' over' : pct > 85 ? ' warning' : '');
   $('calRestante').textContent = restante >= 0 ? restante + ' kcal restantes' : Math.abs(restante) + ' kcal de exceso';
