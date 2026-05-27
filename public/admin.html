@@ -1004,7 +1004,26 @@ tr:hover td { background: rgba(74,222,128,.03); }
       <div class="table-header">
         <h3>📋 Registro de accesos</h3>
         <div class="table-actions">
-          <input class="search-input" id="searchAccesos" placeholder="🔍 Buscar..." oninput="filterAccesos()">
+          <select class="filter-select" id="filterAccesosFecha" onchange="filterAccesos()">
+            <option value="todos">Todas las fechas</option>
+            <option value="hoy">Hoy</option>
+            <option value="7dias">Últimos 7 días</option>
+          </select>
+          <select class="filter-select" id="filterAccesosDispositivo" onchange="filterAccesos()">
+            <option value="todos">Todos los dispositivos</option>
+            <option value="móvil">Móvil</option>
+            <option value="escritorio">Escritorio</option>
+            <option value="tablet">Tablet</option>
+          </select>
+          <select class="filter-select" id="filterAccesosOS" onchange="filterAccesos()">
+            <option value="todos">Todos los OS</option>
+            <option value="Windows">Windows</option>
+            <option value="macOS">macOS</option>
+            <option value="Android">Android</option>
+            <option value="iOS">iOS</option>
+            <option value="Linux">Linux</option>
+          </select>
+          <input class="search-input" id="searchAccesos" placeholder="🔍 Buscar nombre, código, IP..." oninput="filterAccesos()">
         </div>
       </div>
       <div style="overflow-x:auto">
