@@ -1453,11 +1453,39 @@ function renderAccesos(accesos) {
 
 function filterAccesos() {
   const q = document.getElementById('searchAccesos').value.toLowerCase();
-  const filtered = allAccesos.filter(a =>
-    (a.nombre || '').toLowerCase().includes(q) ||
-    (a.code || '').toLowerCase().includes(q) ||
-    (a.ip || '').toLowerCase().includes(q)
-  );
+  const fecha = document.getElementById('filterAccesosFecha').value;
+  const dispositivo = document.getElementById('filterAccesosDispositivo').value;
+  const os = document.getElementById('filterAccesosOS').value;
+
+  const hoy = new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const hace7 = new Date();
+  hace7.setDate(hace7.getDate() - 7);
+
+  const filtered = allAccesos.filter(a => {
+    const matchQ = !q ||
+      (a.nombre || '').toLowerCase().includes(q) ||
+      (a.code || '').toLowerCase().includes(q) ||
+      (a.ip || '').toLowerCase().includes(q);
+
+    let matchFecha = true;
+    if (fecha === 'hoy') {
+      matchFecha = a.fecha === hoy;
+    } else if (fecha === '7dias') {
+      if (a.fecha) {
+        const parts = a.fecha.split('/');
+        if (parts.length === 3) {
+          const d = new Date(parts[2] + '-' + parts[1] + '-' + parts[0]);
+          matchFecha = d >= hace7;
+        }
+      }
+    }
+
+    const matchDisp = dispositivo === 'todos' || (a.tipo || '') === dispositivo;
+    const matchOS = os === 'todos' || (a.os || '').includes(os);
+
+    return matchQ && matchFecha && matchDisp && matchOS;
+  });
+
   renderAccesos(filtered);
 }
 
