@@ -975,6 +975,111 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
 .ejercicio-item:last-child { border-bottom: none; }
 .ejercicio-del { color: var(--red); background: none; border: none; font-size: 16px; padding: 0 0 0 8px; opacity: .6; }
 .ejercicio-del:hover { opacity: 1; }  
+/* HIDRATACIÓN */
+.hidratacion-card {
+  background: linear-gradient(135deg, rgba(56,189,248,.08), rgba(56,189,248,.03));
+  border: 1px solid rgba(56,189,248,.2);
+  border-radius: 20px;
+  padding: 18px;
+}
+.hidratacion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.hidratacion-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hidratacion-icon {
+  width: 32px; height: 32px;
+  border-radius: 10px;
+  background: rgba(56,189,248,.15);
+  display: grid; place-items: center;
+  font-size: 16px;
+}
+.hidratacion-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px; font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: -.01em;
+}
+.hidratacion-reset {
+  background: none; border: none;
+  color: var(--muted); font-size: 11px;
+  cursor: pointer; padding: 4px 8px;
+  border-radius: 6px;
+}
+.hidratacion-reset:hover { color: #38bdf8; }
+.vasos-display {
+  font-family: 'Syne', sans-serif;
+  font-size: 28px; font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: -.03em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.vasos-track {
+  height: 8px;
+  background: rgba(56,189,248,.15);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 10px 0 8px;
+}
+.vasos-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+  transition: width .5s cubic-bezier(.4,0,.2,1);
+}
+.vasos-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.vaso-btn {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: 1.5px solid rgba(56,189,248,.25);
+  background: rgba(56,189,248,.06);
+  font-size: 16px;
+  display: grid; place-items: center;
+  cursor: pointer;
+  transition: all .15s;
+}
+.vaso-btn.lleno {
+  background: rgba(56,189,248,.2);
+  border-color: #38bdf8;
+}
+.vaso-btn:hover { border-color: #38bdf8; }
+.hidratacion-actions {
+  display: flex;
+  gap: 8px;
+}
+.btn-agua {
+  flex: 1;
+  background: linear-gradient(135deg, #0369a1, #0ea5e9);
+  border: none;
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-agua-menos {
+  background: rgba(56,189,248,.1);
+  border: 1px solid rgba(56,189,248,.25);
+  color: #38bdf8;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
 /* MODAL UPGRADE */
 #modalUpgrade .modal { text-align: center; }
 .upgrade-icon { font-size: 48px; margin-bottom: 12px; }
@@ -1252,6 +1357,26 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
     <button class="add-food-btn" style="background:linear-gradient(135deg,#1d4ed8,#3b82f6)" onclick="addEjercicio()">Añadir</button>
   </div>
 </div>
+      <!-- HIDRATACIÓN -->
+<div class="hidratacion-card">
+  <div class="hidratacion-header">
+    <div class="hidratacion-left">
+      <div class="hidratacion-icon">💧</div>
+      <div class="hidratacion-title">Hidratación hoy</div>
+    </div>
+    <button class="hidratacion-reset" onclick="resetHidratacion()">Reiniciar</button>
+  </div>
+  <div>
+    <div class="vasos-display"><span id="vasosCount">0</span> <span style="font-size:14px;font-weight:400;color:var(--muted)">/ 8 vasos</span></div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px"><span id="mlCount">0</span> ml de 2.000 ml diarios</div>
+  </div>
+  <div class="vasos-track"><div class="vasos-fill" id="vasosFill" style="width:0%"></div></div>
+  <div class="vasos-grid" id="vasosGrid"></div>
+  <div class="hidratacion-actions">
+    <button class="btn-agua" onclick="addVaso()">+ Añadir vaso (250ml)</button>
+    <button class="btn-agua-menos" onclick="removeVaso()">−</button>
+  </div>
+</div>
       <!-- IA RECOMENDACIÓN -->
       <div class="ia-card">
         <div class="ia-header">
@@ -1428,10 +1553,15 @@ async function login() {
     }
     const previousUser = localStorage.getItem('fitai_user');
 const previousCode = previousUser ? JSON.parse(previousUser).code : null;
-    currentUser = data;
-    localStorage.setItem('fitai_user', JSON.stringify(currentUser));
-    updateUsageBanner();
-    checkProfile(data.perfil || null);
+currentUser = data;
+localStorage.setItem('fitai_user', JSON.stringify(currentUser));
+if (previousCode && previousCode !== data.code) {
+  localStorage.removeItem('fitai_perfil');
+  localStorage.removeItem('fitai_comidas');
+  localStorage.removeItem('fitai_ejercicios');
+}
+updateUsageBanner();
+checkProfile();
   } catch (e) {
     err.textContent = 'Error de conexión.';
     err.classList.add('show');
@@ -1441,43 +1571,15 @@ const previousCode = previousUser ? JSON.parse(previousUser).code : null;
 }
 
 function getFingerprint() {
-  const data = [
-    navigator.userAgent,
-    screen.width + 'x' + screen.height,
-    screen.colorDepth,
-    navigator.language,
-    navigator.platform,
-    Intl.DateTimeFormat().resolvedOptions().timeZone,
-    navigator.hardwareConcurrency || '',
-    navigator.cookieEnabled
-  ].join('|');
+  const data = [navigator.userAgent, screen.width + 'x' + screen.height, navigator.language].join('|');
   let hash = 0;
-  for (let i = 0; i < data.length; i++) {
-    const char = data.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(16).padStart(8, '0');
+  for (let i = 0; i < data.length; i++) { hash = ((hash << 5) - hash) + data.charCodeAt(i); hash = hash & hash; }
+  return Math.abs(hash).toString(16);
 }
 
 // ── PROFILE ──
-function storageKey(key) {
-  const code = currentUser ? currentUser.code : 'guest';
-  return key + '_' + code;
-}
-
-function checkProfile(perfilFromServer) {
-  // Prioridad: perfil de Upstash > localStorage
-  if (perfilFromServer && typeof perfilFromServer === 'object') {
-    perfil = perfilFromServer;
-    localStorage.setItem(storageKey('fitai_perfil'), JSON.stringify(perfil));
-    loadComidas();
-    loadEjercicios();
-    initDashboard();
-    setScreen('dashboard');
-    return;
-  }
-  const saved = localStorage.getItem(storageKey('fitai_perfil'));
+function checkProfile() {
+  const saved = localStorage.getItem('fitai_perfil');
   if (saved) {
     perfil = JSON.parse(saved);
     loadComidas();
@@ -1539,20 +1641,14 @@ async function saveProfile() {
 
   // FIX: guardamos fechaNac para recalcular edad automáticamente en el futuro
   perfil = { nombre, peso, altura, fechaNac, edad, sexo, actividad, objetivo, tdee, objKcal, protObj, fatObj, carbObj };
-  localStorage.setItem(storageKey('fitai_perfil'), JSON.stringify(perfil));
-
-  // Guardar perfil en Upstash
-  fetch('/api/save-profile-fit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code: currentUser ? currentUser.code : '', perfil })
-  }).catch(e => console.warn('Error guardando perfil:', e));
+  localStorage.setItem('fitai_perfil', JSON.stringify(perfil));
 
   btn.disabled = false;
   btn.textContent = 'Calcular mi plan →';
 
   loadComidas();
   loadEjercicios();
+  loadHidratacion();
   initDashboard();
   setScreen('dashboard');
   toast('¡Plan calculado! Objetivo: ' + objKcal + ' kcal/día');
@@ -1560,8 +1656,8 @@ async function saveProfile() {
 
 function resetProfile() {
   if (!confirm('¿Resetear perfil y datos del día?')) return;
-  localStorage.removeItem(storageKey('fitai_perfil'));
-  localStorage.removeItem(storageKey('fitai_comidas'));
+  localStorage.removeItem('fitai_perfil');
+  localStorage.removeItem('fitai_comidas');
   localStorage.removeItem('fitai_user');
   perfil = null;
   currentUser = null;
@@ -1611,7 +1707,7 @@ function showTab(tab) {
 
 // ── COMIDAS ──
 function loadComidas() {
-  const saved = localStorage.getItem(storageKey('fitai_comidas'));
+  const saved = localStorage.getItem('fitai_comidas');
   if (saved) {
     const data = JSON.parse(saved);
     const hoy = new Date().toDateString();
@@ -1619,9 +1715,9 @@ function loadComidas() {
       comidas = data.comidas;
     } else {
       if (data.comidas) {
-        const hist = JSON.parse(localStorage.getItem(storageKey('fitai_historial')) || '[]');
+        const hist = JSON.parse(localStorage.getItem('fitai_historial') || '[]');
         hist.push({ fecha: data.fecha, total: calcTotal().kcal });
-        localStorage.setItem(storageKey('fitai_historial'), JSON.stringify(hist.slice(-7)));
+        localStorage.setItem('fitai_historial', JSON.stringify(hist.slice(-7)));
       }
       comidas = { desayuno: [], almuerzo: [], cena: [], snack: [] };
     }
@@ -1629,7 +1725,7 @@ function loadComidas() {
 }
 
 function saveComidas() {
-  localStorage.setItem(storageKey('fitai_comidas'), JSON.stringify({
+  localStorage.setItem('fitai_comidas', JSON.stringify({
     fecha: new Date().toDateString(),
     comidas
   }));
@@ -1921,14 +2017,14 @@ function renderEjercicios() {
 }
 
 function saveEjercicios() {
-  localStorage.setItem(storageKey('fitai_ejercicios'), JSON.stringify({
+  localStorage.setItem('fitai_ejercicios', JSON.stringify({
     fecha: new Date().toDateString(),
     ejercicios
   }));
 }
 
 function loadEjercicios() {
-  const saved = localStorage.getItem(storageKey('fitai_ejercicios'));
+  const saved = localStorage.getItem('fitai_ejercicios');
   if (saved) {
     const data = JSON.parse(saved);
     const hoy = new Date().toDateString();
@@ -1939,6 +2035,66 @@ function loadEjercicios() {
     }
   }
 }
+// ── HIDRATACIÓN ──
+let vasos = 0;
+const VASOS_OBJETIVO = 8;
+const ML_POR_VASO = 250;
+
+function addVaso() {
+  if (vasos >= VASOS_OBJETIVO) return;
+  vasos++;
+  saveHidratacion();
+  renderHidratacion();
+  if (vasos === VASOS_OBJETIVO) toast('💧 ¡Objetivo de hidratación alcanzado!');
+}
+
+function removeVaso() {
+  if (vasos <= 0) return;
+  vasos--;
+  saveHidratacion();
+  renderHidratacion();
+}
+
+function resetHidratacion() {
+  vasos = 0;
+  saveHidratacion();
+  renderHidratacion();
+}
+
+function renderHidratacion() {
+  const pct = Math.min(100, Math.round((vasos / VASOS_OBJETIVO) * 100));
+  const ml = vasos * ML_POR_VASO;
+  if ($('vasosCount')) $('vasosCount').textContent = vasos;
+  if ($('mlCount')) $('mlCount').textContent = ml.toLocaleString('es-ES');
+  if ($('vasosFill')) $('vasosFill').style.width = pct + '%';
+  const grid = $('vasosGrid');
+  if (grid) {
+    grid.innerHTML = Array.from({ length: VASOS_OBJETIVO }, function(_, i) {
+      return '<button class="vaso-btn ' + (i < vasos ? 'lleno' : '') + '" onclick="' + (i < vasos ? 'removeVaso' : 'addVaso') + '()" title="Vaso ' + (i + 1) + '">💧</button>';
+    }).join('');
+  }
+}
+
+function saveHidratacion() {
+  localStorage.setItem(storageKey('fitai_hidratacion'), JSON.stringify({
+    fecha: new Date().toDateString(),
+    vasos
+  }));
+}
+
+function loadHidratacion() {
+  const saved = localStorage.getItem(storageKey('fitai_hidratacion'));
+  if (saved) {
+    const data = JSON.parse(saved);
+    if (data.fecha === new Date().toDateString()) {
+      vasos = data.vasos || 0;
+    } else {
+      vasos = 0;
+    }
+  }
+  renderHidratacion();
+}
+
 // ── SUGERIDOR ──
 function openSugeridor() {
   $('modalSugeridor').classList.add('open');
@@ -1979,7 +2135,7 @@ async function generarSugerencia() {
 
 // ── WEEK BARS ──
 function renderWeekBars() {
-  const hist = JSON.parse(localStorage.getItem(storageKey('fitai_historial')) || '[]');
+  const hist = JSON.parse(localStorage.getItem('fitai_historial') || '[]');
   const { kcal } = calcTotal();
   const obj = perfil?.objKcal || 2000;
 
@@ -2030,10 +2186,7 @@ if (codeFromUrl && $('fitCode')) {
   const savedUser = localStorage.getItem('fitai_user');
   if (savedUser) {
     currentUser = JSON.parse(savedUser);
-    fetch('/api/save-profile-fit?code=' + encodeURIComponent(currentUser.code))
-      .then(r => r.json())
-      .then(d => checkProfile(d.perfil || null))
-      .catch(() => checkProfile(null));
+    checkProfile();
   }
 
   // Limitar fecha máxima en el campo fecha nacimiento a hoy
