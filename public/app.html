@@ -2301,7 +2301,12 @@ async function generarSugerencia() {
       return;
     }
     const text = data.content.map(i => i.text || '').join('').trim();
-    $('sugeridorOutput').innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+    $('sugeridorOutput').innerHTML = text
+  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+  .replace(/(✅[^\n]+)/g, '<strong style="color:var(--green)">$1</strong>')
+  .replace(/(Resto del dia sugerido:)/gi, '<strong style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em">$1</strong>')
+  .replace(/(Almuerzo|Merienda|Cena|Snack nocturno|Snack extra|Media mañana|Desayuno):/g, '<br><strong style="color:var(--green);text-decoration:underline">$1</strong>:')
+  .replace(/\n/g, '<br>');
   } catch (e) {
     $('sugeridorOutput').textContent = 'Error al generar sugerencia.';
   }
