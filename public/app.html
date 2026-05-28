@@ -1339,6 +1339,26 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
     <button class="btn-agua-menos" onclick="removeVaso()">−</button>
   </div>
 </div>
+      <!-- PESO CORPORAL -->
+<div class="peso-card">
+  <div class="peso-header">
+    <div class="peso-left">
+      <div class="peso-icon">⚖️</div>
+      <div class="peso-title">Peso corporal</div>
+    </div>
+  </div>
+  <div>
+    <div class="peso-display"><span id="pesoHoy">—</span> <span style="font-size:14px;font-weight:400;color:var(--muted)">kg hoy</span></div>
+    <div class="peso-diff" id="pesoDiff"></div>
+  </div>
+  <div class="peso-input-row">
+    <input class="peso-input" id="inputPeso" type="number" step="0.1" min="30" max="300" placeholder="ej: 74.5" onkeydown="if(event.key==='Enter')guardarPeso()">
+    <button class="btn-peso" onclick="guardarPeso()">Guardar</button>
+  </div>
+  <div class="peso-grafica">
+    <div class="peso-bars" id="pesoBars"></div>
+  </div>
+</div>
       <!-- IA RECOMENDACIÓN -->
       <div class="ia-card">
         <div class="ia-header">
