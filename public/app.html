@@ -2103,7 +2103,164 @@ function loadHidratacion() {
   }
   renderHidratacion();
 }
+// ── PESO CORPORAL ──
+function guardarPeso() {
+  const input = $('inputPeso');
+  const val = parseFloat(input.value);
+  if (!val || val < 30 || val > 300) { toast('Introduce un peso válido.'); return; }
 
+  const histPeso = JSON.parse(localStorage.getItem(storageKey('fitai_peso')) || '[]');
+  const hoy = new Date().toDateString();
+  const existeHoy = histPeso.findIndex(e => e.fecha === hoy);
+  if (existeHoy >= 0) {
+    histPeso[existeHoy].peso = val;
+  } else {
+    histPeso.push({ fecha: hoy, peso: val });
+  }
+  // Máximo 30 días
+  if (histPeso.length > 30) histPeso.shift();
+  localStorage.setItem(storageKey('fitai_peso'), JSON.stringify(histPeso));
+  input.value = '';
+  renderPeso();
+  toast('⚖️ Peso guardado: ' + val + ' kg');
+}
+
+function renderPeso() {
+  const histPeso = JSON.parse(localStorage.getItem(storageKey('fitai_peso')) || '[]');
+  const hoy = new Date().toDateString();
+  const entradaHoy = histPeso.find(e => e.fecha === hoy);
+  const pesoHoyEl = $('pesoHoy');
+  const pesoDiffEl = $('pesoDiff');
+
+  if (entradaHoy) {
+    pesoHoyEl.textContent = entradaHoy.peso.toFixed(1);
+    // Diferencia con ayer
+    const ayer = new Date(); ayer.setDate(ayer.getDate() - 1);
+    const entradaAyer = histPeso.find(e => e.fecha === ayer.toDateString());
+    if (entradaAyer) {
+      const diff = (entradaHoy.peso - entradaAyer.peso).toFixed(1);
+      const sign = diff > 0 ? '+' : '';
+      pesoDiffEl.textContent = sign + diff + ' kg vs ayer';
+      pesoDiffEl.className = 'peso-diff ' + (diff < 0 ? 'baja' : diff > 0 ? 'sube' : 'igual');
+    } else {
+      pesoDiffEl.textContent = '';
+    }
+  } else {
+    pesoHoyEl.textContent = '—';
+    pesoDiffEl.textContent = 'Sin registro hoy';
+    pesoDiffEl.className = 'peso-diff igual';
+  }
+
+  // Gráfica 7 días
+  const dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+  const todayDay = new Date().getDay();
+  const todayIdx = todayDay === 0 ? 6 : todayDay - 1;
+
+  const semana = dias.map((d, i) => {
+    const fecha = new Date();
+    fecha.setDate(fecha.getDate() - (todayIdx - i));
+    const entrada = histPeso.find(e => e.fecha === fecha.toDateString());
+    return { dia: d, peso: entrada ? entrada.peso : 0, hoy: i === todayIdx };
+  });
+
+  const pesos = semana.filter(d => d.peso > 0).map(d => d.peso);
+  const minPeso = pesos.length > 0 ? Math.min(...pesos) - 1 : 60;
+  const maxPeso = pesos.length > 0 ? Math.max(...pesos) + 1 : 80;
+  const rango = maxPeso - minPeso || 1;
+
+  const barsEl = $('pesoBars');
+  if (!barsEl) return;
+  barsEl.innerHTML = semana.map(d => {
+    const altura = d.peso > 0 ? Math.max(4, ((d.peso - minPeso) / rango) * 54) : 4;
+    const opacity = d.peso > 0 ? '1' : '0.2';
+    return `<div class="peso-bar-wrap">
+      <div style="font-size:8px;color:var(--muted);font-family:'DM Mono',monospace;height:12px;display:flex;align-items:center">${d.peso > 0 ? d.peso.toFixed(1) : ''}</div>
+      <div class="peso-bar ${d.hoy ? 'hoy' : ''}" style="height:${altura}px;opacity:${opacity}"></div>
+      <div class="peso-bar-day">${d.dia}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── FAVORITOS ──
+let favoritos = [];
+
+function loadFavoritos() {
+  const saved = localStorage.getItem(storageKey('fitai_favoritos'));
+  favoritos = saved ? JSON.parse(saved) : [];
+}
+
+function saveFavoritos() {
+  localStorage.setItem(storageKey('fitai_favoritos'), JSON.stringify(favoritos));
+}
+
+function toggleFavorito(item) {
+  const idx = favoritos.findIndex(f => f.nombre === item.nombre);
+  if (idx >= 0) {
+    favoritos.splice(idx, 1);
+    saveFavoritos();
+    toast('Eliminado de favoritos');
+  } else {
+    if (favoritos.length >= 20) { toast('Máximo 20 favoritos'); return; }
+    favoritos.push({ nombre: item.nombre, kcal: item.kcal, proteina: item.proteina, carbos: item.carbos, grasa: item.grasa, porcion: item.porcion || '' });
+    saveFavoritos();
+    toast('⭐ Guardado en favoritos');
+  }
+  // Refrescar todas las comidas para actualizar el icono ⭐
+  ['desayuno', 'almuerzo', 'cena', 'snack'].forEach(m => renderMeal(m));
+}
+
+function esFavorito(nombre) {
+  return favoritos.some(f => f.nombre === nombre);
+}
+
+function addFavoritoAComida(meal, favIdx) {
+  const fav = favoritos[favIdx];
+  if (!fav) return;
+  comidas[meal].push({ ...fav });
+  saveComidas();
+  renderMeal(meal);
+  updateUI();
+  updateRecomendacion();
+  toast('✅ ' + fav.nombre + ' — ' + fav.kcal + ' kcal');
+}
+
+function renderFavoritos(meal) {
+  const containerId = 'favs_' + meal;
+  const container = $(containerId);
+  if (!container) return;
+  if (favoritos.length === 0) { container.innerHTML = ''; return; }
+
+  container.innerHTML = `
+    <div class="favoritos-section">
+      <button class="favoritos-toggle" onclick="toggleFavsPanel('${meal}')">
+        ⭐ Favoritos (<span>${favoritos.length}</span>)
+      </button>
+      <div id="favsPanel_${meal}" style="display:none">
+        <div class="favoritos-list">
+          ${favoritos.map((f, i) => `
+            <div class="favorito-item" onclick="addFavoritoAComida('${meal}', ${i})">
+              <span class="favorito-nombre">${f.nombre}</span>
+              <span class="favorito-kcal">${f.kcal} kcal</span>
+              <button class="favorito-del" onclick="event.stopPropagation();eliminarFavorito(${i},'${meal}')">×</button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+function toggleFavsPanel(meal) {
+  const panel = $('favsPanel_' + meal);
+  if (!panel) return;
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function eliminarFavorito(idx, meal) {
+  favoritos.splice(idx, 1);
+  saveFavoritos();
+  renderFavoritos(meal);
+  toast('Favorito eliminado');
+}
 // ── SUGERIDOR ──
 function openSugeridor() {
   $('modalSugeridor').classList.add('open');
