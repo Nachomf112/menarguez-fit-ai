@@ -2281,7 +2281,7 @@ async function generarSugerencia() {
 
   $('sugeridorOutput').innerHTML = '<span class="spinner"></span> Generando menú personalizado<span class="loading-dots"></span>';
   const yaComidasTexto = Object.entries(comidas).filter(([k,v]) => v.length > 0).map(([k,v]) => `${k}: ${v.map(i=>i.nombre).join(', ')}`).join(' | ') || 'ninguna';
-  const prompt = `Eres un nutricionista experto. El usuario quiere ${objLabels[perfil?.objetivo || 'adelgazar']}. Objetivo calorico diario: ${perfil?.objKcal || 2000} kcal. Objetivo proteina: ${perfil?.protObj || 150}g/dia. Ya ha comido hoy ${kcal} kcal (${yaComidasTexto}). Le quedan ${restante} kcal. Genera un menu SOLO para las comidas que faltan en el dia. Indica al inicio: "Ya registrado: [lo que ha comido]". Luego sugiere el resto con FORMATO EXACTO: NombreComida: descripcion (X kcal). Solo comidas que quepan en las calorias restantes. Sin introducciones extra.`;
+  const prompt = `Eres un nutricionista experto. El usuario quiere ${objLabels[perfil?.objetivo || 'adelgazar']}. Objetivo calorico diario: ${perfil?.objKcal || 2000} kcal. Objetivo proteina: ${perfil?.protObj || 150}g/dia. Ya ha comido hoy ${kcal} kcal. Comidas ya registradas: ${yaComidasTexto}. Le quedan ${restante} kcal. Responde SIEMPRE con este formato exacto, sin excepciones:\n✅ Ya registrado: [lista lo que ya ha comido]\n\nResto del dia sugerido:\nNombreComida: descripcion (X kcal)\n\nSolo sugiere comidas para lo que falta. Sin introducciones.`;
 
   try {
     const resp = await fetch(API_URL, {
