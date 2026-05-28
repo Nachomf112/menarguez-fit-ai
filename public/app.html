@@ -1839,9 +1839,13 @@ function renderMeal(meal) {
       <span class="alimento-name">${item.nombre} <span style="font-size:10px;color:var(--muted)">${item.porcion || ''}</span></span>
       <span class="alimento-macros">${item.proteina}p · ${item.carbos}c · ${item.grasa}g</span>
       <span class="alimento-kcal">${item.kcal}</span>
+      <button class="btn-fav ${esFavorito(item.nombre) ? 'guardado' : ''}" onclick="toggleFavorito(comidas['${meal}'][${idx}])" title="${esFavorito(item.nombre) ? 'Quitar favorito' : 'Guardar favorito'}">⭐</button>
       <button class="alimento-del" onclick="removeFood('${meal}',${idx})">×</button>
     </div>
   `).join('');
+
+  // Renderizar favoritos encima del input
+  renderFavoritos(meal);
 }
 
 function calcTotal() {
