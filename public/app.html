@@ -2367,6 +2367,8 @@ if (codeFromUrl && $('fitCode')) {
   const pFechaNac = $('pFechaNac');
   if (pFechaNac) pFechaNac.setAttribute('max', maxDate);
 
+  loadFavoritos();
+  renderPeso();
   $('loginBtn').addEventListener('click', login);
   $('fitCode').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
   $('topbarDate') && ($('topbarDate').textContent = today());
