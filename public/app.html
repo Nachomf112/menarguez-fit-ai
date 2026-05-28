@@ -2305,7 +2305,7 @@ async function generarSugerencia() {
   .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
   .replace(/(✅[^\n]+(\n\([^)]+\))?)/g, '<span style="color:var(--green);font-weight:700">$1</span>')
   .replace(/\n(Resto del dia sugerido:)/gi, '<br><span style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;display:block;margin-top:8px">$1</span>')
-  .replace(/\n(Almuerzo|Merienda|Cena|Snack nocturno|Snack extra|Media mañana|Desayuno|Media ma.ana):/gi, '<br><br><span style="color:var(--green);font-weight:700;text-decoration:underline">$1</span>:')
+  .replace(/\n(Almuerzo|Merienda|Cena|Snack[^:]*|Media mañana|Desayuno|Media ma.ana):/gi, '<br><br><span style="color:var(--green);font-weight:700;text-decoration:underline">$1</span>:')
   .replace(/\n/g, '<br>');
   } catch (e) {
     $('sugeridorOutput').textContent = 'Error al generar sugerencia.';
