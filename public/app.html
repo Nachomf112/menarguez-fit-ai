@@ -2290,7 +2290,7 @@ async function generarSugerencia() {
       body: JSON.stringify({
         userCode: currentUser?.code || '',
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 400,
+        max_tokens: 600,
         messages: [{ role: 'user', content: prompt }]
       })
     });
