@@ -2301,7 +2301,7 @@ async function generarSugerencia() {
       return;
     }
     const text = data.content.map(i => i.text || '').join('').trim();
-    $('sugeridorOutput').innerHTML = text.replace(/\n/g, '<br>');
+    $('sugeridorOutput').innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
   } catch (e) {
     $('sugeridorOutput').textContent = 'Error al generar sugerencia.';
   }
