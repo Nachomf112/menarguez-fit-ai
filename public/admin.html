@@ -1164,7 +1164,7 @@ async function checkLogin() {
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('adminScreen').style.display = 'block';
       loadAll();
-      setInterval(loadAll, 30000);
+      setInterval(loadAll, 300000);
     } else {
       err.style.display = 'block';
       err.textContent = 'Contraseña incorrecta.';
@@ -1715,7 +1715,7 @@ if (sessionStorage.getItem(ADMIN_KEY)) {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('adminScreen').style.display = 'block';
   loadAll();
-  setInterval(loadAll, 30000);
+  setInterval(loadAll, 300000);
 }
 </script>
 </body>
