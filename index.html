@@ -1507,7 +1507,7 @@ Si son varios alimentos, calcula el total. Sé preciso con las calorías reales,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userCode: currentUser?.code || '',
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 300,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -1633,7 +1633,7 @@ Dame una recomendación breve, directa y motivadora en 2-3 frases máximo. Menci
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userCode: currentUser?.code || '',
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 150,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -1672,7 +1672,7 @@ Formato: lista clara con desayuno/almuerzo/cena/snacks según lo que falte. Incl
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userCode: currentUser?.code || '',
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 400,
         messages: [{ role: 'user', content: prompt }]
       })
