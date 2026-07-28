@@ -96,9 +96,12 @@ export default async function handler(req, res) {
     }
   }
   // ── GET: listar todos los códigos FIT ───────────────────────
-  try {
+    try {
     const keysResp = await fetch(`${kvUrl}/keys/code:FIT-*`, { headers: kvHeaders });
     const keysData = await keysResp.json();
+    if (req.query?.debug === '1') {
+      return res.status(200).json({ debug: true, status: keysResp.status, raw: keysData });
+    }
     const keys = keysData.result || [];
 
     const codes = await Promise.all(keys.map(async key => {
