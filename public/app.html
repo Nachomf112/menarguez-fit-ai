@@ -1673,6 +1673,16 @@ async function saveProfile() {
 
   const errBox = $('profileError');
   errBox.classList.remove('show');
+  if (!(peso >= 30 && peso <= 300)) {
+    errBox.textContent = 'El peso debe estar entre 30 y 300 kg.';
+    errBox.classList.add('show');
+    return;
+  }
+  if (!(altura >= 100 && altura <= 250)) {
+    errBox.textContent = 'La altura debe estar entre 100 y 250 cm (por ejemplo 175, no 1,75).';
+    errBox.classList.add('show');
+    return;
+  }
   const edad = calcularEdad(fechaNac);
   if (!Number.isFinite(edad) || edad < 0 || edad > 110) {
     toast('Introduce una fecha de nacimiento válida.');
