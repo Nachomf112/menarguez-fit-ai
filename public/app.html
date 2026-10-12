@@ -185,6 +185,14 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
   line-height: 1.6;
 }
 
+/* ── AVISOS LEGALES / EDAD ── */
+.age-check { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 14px; font-size: 12px; line-height: 1.5; color: var(--muted); cursor: pointer; }
+.age-check input { margin-top: 2px; width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--green2); }
+.age-check strong { color: var(--text); }
+.form-error { display: none; margin: 0 0 12px; padding: 12px 16px; background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3); border-radius: 10px; color: var(--red); font-size: 13px; line-height: 1.5; }
+.form-error.show { display: block; }
+.legal-note { margin-top: 10px; font-size: 11px; line-height: 1.5; color: var(--muted); opacity: .85; }
+
 /* ── PROFILE SETUP ── */
 #screenProfile {
   padding: calc(32px + var(--safe-top)) 24px calc(40px + var(--safe-bottom));
@@ -1081,6 +1089,7 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
     <button class="btn-primary" id="loginBtn">Acceder →</button>
 
     <div class="login-error" id="loginError">Código incorrecto o expirado.</div>
+    <p class="legal-note">Servicio solo para mayores de 18 años. La información es orientativa y no sustituye el consejo de un médico o nutricionista.</p>
 
     <div class="login-info">
       ¿Sin código? Solicita tu acceso gratuito de 2 días en <a href="https://tally.so/r/xXlpkr" target="_blank" style="color:var(--green);font-weight:700;text-decoration:none;">fit.menarguez-ia.com</a>
@@ -1155,6 +1164,12 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
       </button>
     </div>
   </div>
+
+  <label class="age-check" for="pMayor18">
+    <input type="checkbox" id="pMayor18">
+    <span><strong>Confirmo que tengo 18 años o más.</strong> Entiendo que Menarguez Fit AI ofrece información orientativa y que no sustituye el consejo de un médico o nutricionista.</span>
+  </label>
+  <div class="form-error" id="profileError" role="alert"></div>
 
   <button class="btn-primary" id="profileBtn" onclick="saveProfile()">Calcular mi plan →</button>
 </div>
@@ -1370,6 +1385,7 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
           <div class="ia-title">Recomendación IA</div>
         </div>
         <div class="ia-text muted" id="iaRecomendacion">Añade tus comidas para recibir recomendaciones personalizadas.</div>
+        <div class="legal-note">Información orientativa generada por IA. No sustituye el consejo de un médico o nutricionista.</div>
       </div>
 
     </div>
@@ -1492,6 +1508,35 @@ function setScreen(s) {
   });
 }
 
+// ── EDAD MÍNIMA ──
+const EDAD_MINIMA = 18;
+const MSG_MENOR = 'Menarguez Fit AI es solo para mayores de 18 años.';
+
+// Cierra la sesión local, borra el perfil guardado en este navegador y vuelve al login con aviso.
+function bloquearMenor() {
+  try {
+    if (currentUser) {
+      localStorage.removeItem(storageKey('fitai_perfil'));
+      localStorage.removeItem(storageKey('fitai_comidas'));
+    }
+    localStorage.removeItem('fitai_user');
+  } catch (e) { /* sin almacenamiento */ }
+  perfil = null;
+  currentUser = null;
+  setScreen('login');
+  const err = $('loginError');
+  if (err) { err.textContent = MSG_MENOR; err.classList.add('show'); }
+  const btn = $('loginBtn');
+  if (btn) { btn.disabled = false; btn.textContent = 'Acceder →'; }
+}
+
+// Edad de un perfil ya guardado (con fechaNac, o la edad antigua si no la tiene). null si no se sabe.
+function edadDePerfil(p) {
+  if (!p || typeof p !== 'object') return null;
+  if (p.fechaNac) { const e = calcularEdad(p.fechaNac); return Number.isFinite(e) ? e : null; }
+  return typeof p.edad === 'number' ? p.edad : null;
+}
+
 // ── FECHA NACIMIENTO → EDAD ──
 function calcularEdad(fechaNac) {
   const hoy = new Date();
@@ -1576,6 +1621,8 @@ function storageKey(key) {
 }
 
 function checkProfile(perfilFromServer) {
+  const edadServ = edadDePerfil(perfilFromServer);
+  if (edadServ !== null && edadServ < EDAD_MINIMA) { bloquearMenor(); return; }
   if (perfilFromServer && typeof perfilFromServer === 'object') {
     perfil = perfilFromServer;
     localStorage.setItem(storageKey('fitai_perfil'), JSON.stringify(perfil));
@@ -1588,7 +1635,12 @@ function checkProfile(perfilFromServer) {
   }
   const saved = localStorage.getItem(storageKey('fitai_perfil'));
   if (saved) {
-    perfil = JSON.parse(saved);
+    let guardado = null;
+    try { guardado = JSON.parse(saved); } catch (e) { guardado = null; }
+    const edadLocal = edadDePerfil(guardado);
+    if (edadLocal !== null && edadLocal < EDAD_MINIMA) { bloquearMenor(); return; }
+    if (!guardado) { setScreen('profile'); return; }
+    perfil = guardado;
     loadComidas();
     loadEjercicios();
     loadHidratacion();
@@ -1619,9 +1671,21 @@ async function saveProfile() {
     return;
   }
 
+  const errBox = $('profileError');
+  errBox.classList.remove('show');
   const edad = calcularEdad(fechaNac);
-  if (edad < 10 || edad > 100) {
+  if (!Number.isFinite(edad) || edad < 0 || edad > 110) {
     toast('Introduce una fecha de nacimiento válida.');
+    return;
+  }
+  if (edad < EDAD_MINIMA) {
+    errBox.textContent = MSG_MENOR;
+    errBox.classList.add('show');
+    return;
+  }
+  if (!$('pMayor18').checked) {
+    errBox.textContent = 'Marca la casilla para confirmar que tienes 18 años o más.';
+    errBox.classList.add('show');
     return;
   }
 
@@ -1648,14 +1712,31 @@ async function saveProfile() {
   const carbObj = Math.round((objKcal - protObj * 4 - fatObj * 9) / 4);
 
   // FIX: guardamos fechaNac para recalcular edad automáticamente en el futuro
-  perfil = { nombre, peso, altura, fechaNac, edad, sexo, actividad, objetivo, tdee, objKcal, protObj, fatObj, carbObj };
-  localStorage.setItem(storageKey('fitai_perfil'), JSON.stringify(perfil));
+  const nuevoPerfil = { nombre, peso, altura, fechaNac, edad, sexo, actividad, objetivo, tdee, objKcal, protObj, fatObj, carbObj };
 
-  fetch('/api/save-profile-fit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code: currentUser ? currentUser.code : '', perfil })
-  }).catch(e => console.warn('Error guardando perfil:', e));
+  // El servidor es la barrera definitiva: si rechaza por edad, no se guarda nada.
+  try {
+    const r = await fetch('/api/save-profile-fit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: currentUser ? currentUser.code : '', perfil: nuevoPerfil })
+    });
+    if (r.status === 403) {
+      bloquearMenor();
+      return;
+    }
+    if (r.status === 400) {
+      btn.disabled = false;
+      btn.textContent = 'Calcular mi plan →';
+      toast('Revisa los datos del perfil, no se pudo guardar.');
+      return;
+    }
+  } catch (e) {
+    console.warn('Error guardando perfil:', e);   // sin conexión: se mantiene el perfil local
+  }
+
+  perfil = nuevoPerfil;
+  localStorage.setItem(storageKey('fitai_perfil'), JSON.stringify(perfil));
 
   btn.disabled = false;
   btn.textContent = 'Calcular mi plan →';
