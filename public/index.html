@@ -845,6 +845,26 @@ footer {
 
 .footer-links a:hover { color: var(--green); }
 
+/* NOTA LEGAL EDAD */
+.age-note {
+  margin-top: 20px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.age-note strong { color: var(--text); font-weight: 600; }
+
+.footer-legal {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 24px calc(28px + var(--safe-bottom));
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+  text-align: center;
+}
+
 /* RESPONSIVE */
 @media (max-width: 600px) {
   .topbar-actions .btn-outline { display: none; }
@@ -886,6 +906,7 @@ footer {
     <a href="#acceso" class="btn-hero">Empezar gratis — 2 días →</a>
     <a href="/app.html" class="btn-hero-ghost">Ver la app →</a>
   </div>
+  <p class="age-note"><strong>Solo para mayores de 18 años.</strong> La información es orientativa y no sustituye el consejo de un médico o nutricionista.</p>
 
   <div class="stats">
     <div class="stat-item">
@@ -1077,6 +1098,9 @@ footer {
     <div class="access-note">
       Recibirás tu código en el email en menos de 1 minuto · Sin tarjeta de crédito
     </div>
+    <div class="access-note">
+      Al solicitar acceso confirmas que tienes <strong style="color:var(--text)">18 años o más</strong> y que Fit AI ofrece información orientativa que no sustituye el consejo de un médico o nutricionista.
+    </div>
   </div>
 </section>
 
@@ -1116,6 +1140,13 @@ footer {
     </div>
     <div class="faq-item">
       <button class="faq-q" onclick="toggleFaq(this)">
+        ¿Hay una edad mínima para usar Fit AI?
+        <span class="faq-arrow">+</span>
+      </button>
+      <div class="faq-a">Sí, Fit AI es solo para mayores de 18 años. Al solicitar acceso debes confirmarlo y, al crear tu perfil, la app comprueba tu fecha de nacimiento. Las recomendaciones son orientativas y no sustituyen el consejo de un médico o nutricionista, sobre todo si tienes alguna condición de salud.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">
         ¿Mis datos están seguros?
         <span class="faq-arrow">+</span>
       </button>
@@ -1139,6 +1170,7 @@ footer {
     <a href="https://menarguez-ia.com">Suite IA</a>
   </div>
 </footer>
+<div class="footer-legal">Solo para mayores de 18 años. Fit AI ofrece información orientativa sobre nutrición y no sustituye el consejo de un médico o nutricionista.</div>
 
 <script>
 // Botón acceder → redirige a la app con el código prefilled si hay código
