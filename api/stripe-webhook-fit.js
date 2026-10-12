@@ -11,8 +11,15 @@
 //   - Lectura de Upstash tolerante a doble serialización (["{...}"]).
 //   - SCAN completo con cursor.
 //   - URL de Make en variable de entorno MAKE_WEBHOOK_PRO (el repo es público).
+// v2.3 (12/10/2026):
+//   - SOLO se crea código Pro para el Payment Link de Fit AI
+//     (FIT_PAYMENT_LINK_ID). La cuenta de Stripe también vende la Suite
+//     (Pro/Business): sin este filtro, cada compra de la Suite creaba un
+//     código Fit AI Pro y mandaba el email de bienvenida de Fit AI.
+//   - El código Pro ya no caduca al año aunque la suscripción siga activa:
+//     la caducidad la decide Stripe (customer.subscription.deleted).
 // Variables: STRIPE_WEBHOOK_SECRET_FIT, KV_REST_API_URL, KV_REST_API_TOKEN,
-//            MAKE_WEBHOOK_PRO
+//            MAKE_WEBHOOK_PRO, FIT_PAYMENT_LINK_ID
 // ════════════════════════════════════════════════════════════════
 
 import crypto from 'node:crypto';
@@ -179,6 +186,17 @@ export default async function handler(req, res) {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
 
+      // Solo compras hechas con el Payment Link de Fit AI (plink_...)
+      const linkFit = process.env.FIT_PAYMENT_LINK_ID;
+      if (!linkFit) {
+        console.error('FIT_PAYMENT_LINK_ID no configurada');
+        return res.status(500).json({ error: 'Configuración incompleta' });
+      }
+      if (session.payment_link !== linkFit) {
+        console.log('checkout.session.completed ignorado: no es el Payment Link de Fit AI');
+        return res.status(200).json({ received: true, ignorado: 'otro_producto' });
+      }
+
       const nombre = session.customer_details?.name || 'Usuario';
       const email = session.customer_details?.email || '';
       const customerId = session.customer;
@@ -190,8 +208,9 @@ export default async function handler(req, res) {
       // Si ya existe (reintento), no se sobrescribe: se conservan usos y dispositivo
       let codeData = await upstashGet(`code:${code}`);
       if (!codeData) {
+        // Pro dura mientras Stripe mantenga la suscripción: fecha lejana, no 1 año
         const expira = new Date();
-        expira.setFullYear(expira.getFullYear() + 1);
+        expira.setFullYear(expira.getFullYear() + 10);
 
         codeData = {
           nombre,
@@ -221,7 +240,7 @@ export default async function handler(req, res) {
       // Si Make falla se responde 502: Stripe reintenta y el código no cambia
       // 'codigo' y 'expira' son los campos que usa la plantilla de Gmail en Make
       const avisado = await notificarMake({
-        nombre, email, code, codigo: code, expira: codeData.expira, plan: 'pro', evento: 'alta',
+        nombre, email, code, codigo: code, expira: 'Mientras tu suscripción esté activa', plan: 'pro', evento: 'alta',
         fecha_registro: codeData.fecha_registro, stripe_customer_id: codeData.stripe_customer_id,
       });
       if (!avisado) {
