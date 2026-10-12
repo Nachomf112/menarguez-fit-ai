@@ -48,6 +48,18 @@ export function validarEdad(perfil, hoy = new Date()) {
   return null;
 }
 
+// Rangos razonables de peso (kg) y altura (cm): evita planes absurdos (p. ej. altura 1.5 en vez de 150).
+export function validarRangos(perfil) {
+  const peso = Number(perfil.peso), altura = Number(perfil.altura);
+  if (!(peso >= 30 && peso <= 300)) {
+    return { status: 400, error: 'peso_invalido', mensaje: 'El peso debe estar entre 30 y 300 kg.' };
+  }
+  if (!(altura >= 100 && altura <= 250)) {
+    return { status: 400, error: 'altura_invalida', mensaje: 'La altura debe estar entre 100 y 250 cm.' };
+  }
+  return null;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -78,7 +90,7 @@ export default async function handler(req, res) {
     if (!perfil || typeof perfil !== 'object' || Array.isArray(perfil)) {
       return res.status(400).json({ error: 'Perfil requerido' });
     }
-    const rechazo = validarEdad(perfil);
+    const rechazo = validarEdad(perfil) || validarRangos(perfil);
     if (rechazo) {
       return res.status(rechazo.status).json({ error: rechazo.error, mensaje: rechazo.mensaje });
     }

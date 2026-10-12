@@ -30,6 +30,39 @@ function parseUserAgent(ua) {
   return { os, browser, tipo };
 }
 
+// ── EDAD MÍNIMA ───────────────────────────────────────────────────
+const EDAD_MINIMA = 18;
+const MSG_MENOR = 'Menarguez Fit AI es solo para mayores de 18 años.';
+
+function parseFecha(v) {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  let y, m, d, r = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (r) { y = +r[1]; m = +r[2]; d = +r[3]; }
+  else {
+    r = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+    if (!r) return null;
+    d = +r[1]; m = +r[2]; y = +r[3];
+  }
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+  return dt;
+}
+
+// true si el perfil guardado es de un menor (por fechaNac; si no la tiene, por la edad antigua).
+export function esPerfilMenor(p, hoy = new Date()) {
+  if (!p || typeof p !== 'object') return false;
+  const bruto = p.fechaNac ?? p.fechaNacimiento ?? p.fecha_nacimiento;
+  const f = parseFecha(bruto);
+  if (f) {
+    let e = hoy.getUTCFullYear() - f.getUTCFullYear();
+    const dm = hoy.getUTCMonth() - f.getUTCMonth();
+    if (dm < 0 || (dm === 0 && hoy.getUTCDate() < f.getUTCDate())) e--;
+    return e < EDAD_MINIMA;
+  }
+  return typeof p.edad === 'number' && p.edad < EDAD_MINIMA;
+}
+
 export default async function handler(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -38,7 +71,12 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
-  const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+  let body;
+  try {
+    body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+  } catch (e) {
+    return res.status(400).json({ valid: false, error: 'JSON no válido' });
+  }
   const { code, fingerprint, userAgent } = body;
 
   if (!code || typeof code !== 'string') {
@@ -93,6 +131,25 @@ export default async function handler(req, res) {
         error: `Has agotado tus ${usosMax} análisis. Actualiza a Pro por 4,99€/mes.`,
         upgrade: true
       });
+    }
+
+    // ── LEER PERFIL DESDE UPSTASH ────────────────────────────
+    let perfilUpstash = null;
+    try {
+      const perfilResp = await fetch(`${url}/get/profile:${cleanCode}`, { headers });
+      const perfilData = await perfilResp.json();
+      if (perfilData.result) {
+        let p = perfilData.result;
+        if (typeof p === 'string') { try { p = JSON.parse(p); } catch(e) {} }
+        if (p && typeof p === 'object') perfilUpstash = p;
+      }
+    } catch(e) {
+      console.warn('Error leyendo perfil:', e.message);
+    }
+
+    // Barrera de edad: un perfil de menor no puede entrar (y no se registra el acceso).
+    if (esPerfilMenor(perfilUpstash)) {
+      return res.status(200).json({ valid: false, error: MSG_MENOR, menor: true });
     }
 
     if (fingerprint) {
@@ -150,20 +207,6 @@ export default async function handler(req, res) {
           body: JSON.stringify(registroAcceso)
         });
       }
-    }
-
-    // ── LEER PERFIL DESDE UPSTASH ────────────────────────────
-    let perfilUpstash = null;
-    try {
-      const perfilResp = await fetch(`${url}/get/profile:${cleanCode}`, { headers });
-      const perfilData = await perfilResp.json();
-      if (perfilData.result) {
-        let p = perfilData.result;
-        if (typeof p === 'string') { try { p = JSON.parse(p); } catch(e) {} }
-        if (p && typeof p === 'object') perfilUpstash = p;
-      }
-    } catch(e) {
-      console.warn('Error leyendo perfil:', e.message);
     }
 
     return res.status(200).json({
