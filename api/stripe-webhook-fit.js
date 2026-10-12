@@ -219,7 +219,10 @@ export default async function handler(req, res) {
       }
 
       // Si Make falla se responde 502: Stripe reintenta y el código no cambia
-      const avisado = await notificarMake({ nombre, email, code, plan: 'pro', evento: 'alta' });
+      // 'codigo' y 'expira' son los campos que usa la plantilla de Gmail en Make
+      const avisado = await notificarMake({
+        nombre, email, code, codigo: code, expira: codeData.expira, plan: 'pro', evento: 'alta',
+      });
       if (!avisado) {
         console.error('Make no aceptó el aviso de alta');
         return res.status(502).json({ error: 'Aviso a Make fallido' });
@@ -263,6 +266,8 @@ export default async function handler(req, res) {
           nombre: codeData.nombre,
           email: codeData.email,
           code: key.replace('code:', ''),
+          codigo: key.replace('code:', ''),
+          expira: codeData.expira,
           plan: 'cancelled',
           evento: 'cancelacion',
         });
