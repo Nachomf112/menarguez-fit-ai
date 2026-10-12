@@ -222,6 +222,7 @@ export default async function handler(req, res) {
       // 'codigo' y 'expira' son los campos que usa la plantilla de Gmail en Make
       const avisado = await notificarMake({
         nombre, email, code, codigo: code, expira: codeData.expira, plan: 'pro', evento: 'alta',
+        fecha_registro: codeData.fecha_registro, stripe_customer_id: codeData.stripe_customer_id,
       });
       if (!avisado) {
         console.error('Make no aceptó el aviso de alta');
@@ -268,6 +269,8 @@ export default async function handler(req, res) {
           code: key.replace('code:', ''),
           codigo: key.replace('code:', ''),
           expira: codeData.expira,
+          fecha_registro: codeData.fecha_registro,
+          stripe_customer_id: codeData.stripe_customer_id,
           plan: 'cancelled',
           evento: 'cancelacion',
         });
