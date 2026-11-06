@@ -22,11 +22,27 @@ export function startSession(ps: PlannedSession, recuperacion: Recovery, ajustes
     aerobicoMin: ps.tipo === 'aerobica' ? 0 : undefined, timer: null };
 }
 
+/** Sustituye el ejercicio `idx`. Si ya tiene series hechas, se conservan con el ejercicio original
+ *  y las series pendientes pasan a la alternativa, que se inserta a continuación. */
 export function substitute(a: ActiveSession, idx: number, newId: string): ActiveSession {
-  const ejercicios = a.ejercicios.map((e, i) => i !== idx ? e : {
-    ...e, exerciseId: newId, sets: e.sets.map(() => ({ hecho: false })), rpe: undefined, molestia: 0 as const, tecnicaEstable: true,
-  });
-  return { ...a, ejercicios };
+  const cur = a.ejercicios[idx];
+  if (!cur) return a;
+  const done = cur.sets.filter((x) => x.hecho);
+  if (done.length === 0) {
+    const ejercicios = a.ejercicios.map((e, i) => i !== idx ? e : {
+      ...e, exerciseId: newId, sets: e.sets.map(() => ({ hecho: false })), rpe: undefined, molestia: 0 as const, tecnicaEstable: true,
+    });
+    return { ...a, ejercicios };
+  }
+  const pendientes = cur.sets.length - done.length;
+  if (pendientes === 0) return a;
+  const kept: LoggedExercise = { ...cur, sets: done };
+  const nuevo: LoggedExercise = {
+    exerciseId: newId, originalId: cur.originalId, presc: { ...cur.presc, series: pendientes },
+    sets: Array.from({ length: pendientes }, () => ({ hecho: false })), molestia: 0, tecnicaEstable: true,
+  };
+  const ejercicios = [...a.ejercicios.slice(0, idx), kept, nuevo, ...a.ejercicios.slice(idx + 1)];
+  return { ...a, ejercicios, actual: idx + 1, timer: null };
 }
 
 export function statusOf(a: ActiveSession): SessionStatus | 'vacia' {

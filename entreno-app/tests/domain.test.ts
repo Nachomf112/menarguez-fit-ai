@@ -3,7 +3,7 @@ import { EXERCISES, EXERCISE_BY_ID } from '../src/data/exercises';
 import { blankProfile, emptyProfileData, makeDemo } from '../src/data/demo';
 import { canPlan, generatePlan, substitutes, validatePlan } from '../src/domain/planner';
 import { suggestFor, weeklyReview } from '../src/domain/progression';
-import { finishSession, startSession, timerPause, timerRemaining, timerResume, timerStart } from '../src/domain/session';
+import { finishSession, startSession, substitute, timerPause, timerRemaining, timerResume, timerStart } from '../src/domain/session';
 import { generateMenu } from '../src/domain/nutrition';
 import type { NutritionProfile, Profile, SessionLog } from '../src/domain/types';
 import { LocalRepository, emptyState, exportBackup, exportCsv, parseBackup } from '../src/storage/store';
@@ -152,6 +152,22 @@ describe('sesión en curso', () => {
     a.ejercicios.forEach((e) => e.sets.forEach((s) => { s.hecho = true; }));
     expect(finishSession(a, {}, NOW).estado).toBe('completada');
     expect(finishSession(a, { cancelar: true }, NOW).estado).toBe('cancelada');
+  });
+  it('sustituir conserva las series ya hechas', () => {
+    const a = startSession(plan.sesiones[0], 'normal', {}, NOW);
+    const n = a.ejercicios.length;
+    const total = a.ejercicios[0].sets.length;
+    a.ejercicios[0].sets[0] = { hecho: true, reps: 10, kg: 8 };
+    const alt = substitutes(p, a.ejercicios[0].exerciseId)[0].id;
+    const b = substitute(a, 0, alt);
+    expect(b.ejercicios).toHaveLength(n + 1);
+    expect(b.ejercicios[0].sets).toEqual([{ hecho: true, reps: 10, kg: 8 }]);
+    expect(b.ejercicios[1].exerciseId).toBe(alt);
+    expect(b.ejercicios[1].sets).toHaveLength(total - 1);
+    expect(b.actual).toBe(1);
+    const c = substitute(startSession(plan.sesiones[0], 'normal', {}, NOW), 0, alt);
+    expect(c.ejercicios).toHaveLength(n);
+    expect(c.ejercicios[0].exerciseId).toBe(alt);
   });
   it('con mala recuperación reduce una serie y sube la reserva', () => {
     const a = startSession(plan.sesiones[0], 'mala', {}, NOW);

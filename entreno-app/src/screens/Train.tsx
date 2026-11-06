@@ -229,14 +229,17 @@ function ActiveView() {
         </div>
         {showSubs && (
           <div className="list">
+            {ex.sets.some((x) => x.hecho) && (ex.sets.every((x) => x.hecho)
+              ? <p className="small muted">Ya has completado todas las series de este ejercicio; no hace falta sustituirlo.</p>
+              : <Notice>Las {ex.sets.filter((x) => x.hecho).length} series ya hechas se conservan con {e.nombre}. Las pendientes pasarán a la alternativa que elijas.</Notice>)}
             {subs.length === 0 && <p className="small muted">No hay alternativas compatibles con tu material y tus limitaciones.</p>}
-            {subs.slice(0, 5).map((s) => (
+            {!ex.sets.every((x) => x.hecho) && subs.slice(0, 5).map((s) => (
               <button type="button" key={s.id} className="item" onClick={() => { upd((x) => substitute(x, i, s.id)); setShowSubs(false); }}>
                 <div><strong>{s.nombre}</strong><div className="small muted">{s.material.join(', ')} · dificultad {s.dificultad}</div></div>
                 <span className="badge blue">Usar</span>
               </button>
             ))}
-            {ex.exerciseId !== ex.originalId && <button type="button" className="btn ghost sm" onClick={() => { upd((x) => substitute(x, i, ex.originalId)); setShowSubs(false); }}>Volver al original</button>}
+            {ex.exerciseId !== ex.originalId && !ex.sets.some((x) => x.hecho) && !a.ejercicios.slice(0, i).some((x) => x.exerciseId === ex.originalId) && <button type="button" className="btn ghost sm" onClick={() => { upd((x) => substitute(x, i, ex.originalId)); setShowSubs(false); }}>Volver al original</button>}
           </div>
         )}
       </div>

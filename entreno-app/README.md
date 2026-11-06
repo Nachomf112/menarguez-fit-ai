@@ -1,4 +1,4 @@
-# Menarguez Fit IA — módulo de entrenamiento (v0.1)
+# Menarguez Fit IA — módulo de entrenamiento (v0.2)
 
 Aplicación web para crear programas personalizados de musculación y registrar la evolución.
 Menarguez-IA-Solutions | Ignacio Menárguez Fernández

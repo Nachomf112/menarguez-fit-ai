@@ -1,6 +1,6 @@
 import { blankProfile, DEMO_ID, makeDemo } from '../data/demo';
 import { uid } from '../domain/session';
-import { useApp, Notice } from '../ui/kit';
+import { HeroArt, useApp, Notice } from '../ui/kit';
 
 export function Welcome() {
   const { state, set, go } = useApp();
@@ -20,26 +20,35 @@ export function Welcome() {
 
   return (
     <div className="screen">
-      <section className="hero">
-        <span className="eyebrow">Musculación y seguimiento</span>
-        <h1>Tu programa,<br /><span>a tu medida</span></h1>
-        <div className="rule" />
-        <p className="muted" style={{ maxWidth: '60ch' }}>
-          Responde unas preguntas por fases y obtendrás una semana de entrenamiento adaptada a tu objetivo, tu tiempo,
-          tu material y tus limitaciones. Registra cada serie y revisa tu progreso con datos comparables.
-        </p>
-        <div className="row">
-          {state.borrador ? (
-            <>
-              <button type="button" className="btn primary" onClick={continuar}>Continuar evaluación</button>
-              <button type="button" className="btn" onClick={nuevo}>Empezar de nuevo</button>
-            </>
-          ) : (
-            <button type="button" className="btn primary" onClick={nuevo}>Crear mi perfil</button>
-          )}
-          <button type="button" className="btn" onClick={demo}>Ver perfil de demostración</button>
+      <span className="crumbs">Menarguez-IA-Solutions / Entrenamiento personal</span>
+      <section className="herocard">
+        <div className="stack">
+          <span className="eyebrow">Menarguez Fit IA</span>
+          <h1>No es solo<br />entrenar.<br /><em>Es avanzar.</em></h1>
+          <p className="muted" style={{ maxWidth: '46ch' }}>
+            Unas preguntas por fases y tendrás una semana de entrenamiento adaptada a tu objetivo, tu tiempo,
+            tu material y tus limitaciones. Registra cada serie y mide tu progreso con datos comparables.
+          </p>
+          <div className="row">
+            {state.borrador ? (
+              <>
+                <button type="button" className="btn primary" onClick={continuar}>Continuar evaluación</button>
+                <button type="button" className="btn" onClick={nuevo}>Empezar de nuevo</button>
+              </>
+            ) : (
+              <button type="button" className="btn primary" onClick={nuevo}>Crear mi perfil</button>
+            )}
+            <button type="button" className="btn" onClick={demo}>Ver perfil de demostración</button>
+          </div>
         </div>
+        <div className="art stack" style={{ justifyItems: 'center' }}><HeroArt /><span className="caption">Construye tu propia fuerza</span></div>
       </section>
+
+      <div className="steps3">
+        <div className="step3"><span className="n">01</span><span className="eyebrow">Conócete</span><h3>Tu punto de partida</h3><p className="small muted">Objetivo, experiencia, tiempo y limitaciones. Solo lo necesario.</p></div>
+        <div className="step3"><span className="n">02</span><span className="eyebrow">Entrena</span><h3>Un plan que encaja</h3><p className="small muted">Ejercicios, series, descansos y alternativas. En casa o en el gimnasio.</p></div>
+        <div className="step3"><span className="n">03</span><span className="eyebrow">Evoluciona</span><h3>Cada sesión cuenta</h3><p className="small muted">Registra tus series y recibe ajustes explicados con tus propios datos.</p></div>
+      </div>
 
       {perfiles.length > 0 && (
         <section className="stack">
@@ -59,15 +68,6 @@ export function Welcome() {
       )}
 
       <section className="stack">
-        <div className="card flat">
-          <h3>Cómo funciona</h3>
-          <ul className="plain muted">
-            <li>Evaluación en dos fases: primero lo esencial; después solo lo que haga falta.</li>
-            <li>Plan semanal por reglas explícitas y verificables. Sin kilos inventados: la carga se elige por técnica y esfuerzo.</li>
-            <li>Modo entrenamiento con registro de series, temporizador y alternativas.</li>
-            <li>Progreso basado solo en registros equivalentes del mismo ejercicio.</li>
-          </ul>
-        </div>
         <Notice title="Tus datos se quedan en este navegador">
           No se envían a ningún servidor ni se sincronizan entre dispositivos. Puedes exportar una copia en Ajustes.
         </Notice>

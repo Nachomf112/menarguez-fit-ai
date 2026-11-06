@@ -70,6 +70,7 @@ export interface Profile {
   indicacionesProfesionales: string;
   pesoKg?: number;
   alturaCm?: number;
+  consentimientoLocal?: string; // fecha en que aceptó guardar el perfil en este navegador
   creado: string;
   actualizado: string;
 }

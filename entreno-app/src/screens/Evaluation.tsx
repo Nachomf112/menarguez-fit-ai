@@ -56,21 +56,32 @@ function AvoidPicker({ r, u }: { r: R; u: (p: Partial<R>) => void }) {
   );
 }
 
+const showBody = (r: R) => r.objetivo === 'composicion' || r.objetivo === 'hipertrofia';
+const validBody = (r: R) => (r.pesoKg != null && !(r.pesoKg >= 30 && r.pesoKg <= 300)) ? 'Peso entre 30 y 300 kg.' : (r.alturaCm != null && !(r.alturaCm >= 120 && r.alturaCm <= 230)) ? 'Altura entre 120 y 230 cm.' : null;
+
 const STEPS: Step[] = [
-  { id: 'identidad', fase: 1, titulo: '¿Cómo te llamamos?',
+  { id: 'identidad', fase: 1, titulo: 'Empecemos por ti',
     valid: (r) => !r.nombre.trim() ? 'Escribe un nombre o alias.' : !Number.isFinite(r.edad) ? 'Indica tu edad.' : r.edad < 18 ? 'Menarguez Fit IA es solo para mayores de 18 años.' : r.edad > 100 ? 'Revisa la edad.' : null,
     body: (r, u) => (
       <div className="stack">
-        <label className="field"><span>Nombre o alias</span><input id="eval-nombre" type="text" maxLength={40} autoComplete="nickname" value={r.nombre} onChange={(e) => u({ nombre: e.target.value })} /></label>
-        <label className="field"><span>Edad</span><input id="eval-edad" type="number" inputMode="numeric" min={18} max={100} value={Number.isFinite(r.edad) ? r.edad : ''} onChange={(e) => u({ edad: e.target.value === '' ? NaN : Number(e.target.value) })} /></label>
-        <p className="small faint">Usamos la edad para ajustar la intensidad y añadir precauciones cuando proceda.</p>
+        <div className="row">
+          <label className="field" style={{ flex: '2 1 200px' }}><span>¿Cómo quieres que te llamemos?</span><input id="eval-nombre" type="text" maxLength={40} autoComplete="nickname" value={r.nombre} onChange={(e) => u({ nombre: e.target.value })} /></label>
+          <label className="field" style={{ flex: '1 1 100px' }}><span>Edad</span><input id="eval-edad" type="number" inputMode="numeric" min={18} max={100} value={Number.isFinite(r.edad) ? r.edad : ''} onChange={(e) => u({ edad: e.target.value === '' ? NaN : Number(e.target.value) })} /></label>
+        </div>
+        <div className="field"><span>¿Qué quieres conseguir?</span>
+          <div className="choice">{GOAL_OPTS.map((o) => <Option key={o.v} on={r.objetivo === o.v} onClick={() => u({ objetivo: o.v })} title={o.t} desc={o.d} />)}</div>
+        </div>
       </div>) },
-  { id: 'objetivo', fase: 1, titulo: '¿Qué quieres conseguir?',
-    body: (r, u) => <div className="choice">{GOAL_OPTS.map((o) => <Option key={o.v} on={r.objetivo === o.v} onClick={() => u({ objetivo: o.v })} title={o.t} desc={o.d} />)}</div> },
-  { id: 'experiencia', fase: 1, titulo: '¿Cuánta experiencia tienes con el entrenamiento de fuerza?',
-    body: (r, u) => <div className="choice">{EXP_OPTS.map((o) => <Option key={o.v} on={r.experiencia === o.v} onClick={() => u({ experiencia: o.v })} title={o.t} desc={o.d} />)}</div> },
-  { id: 'actividad', fase: 1, titulo: '¿Cómo es tu actividad actual?',
-    body: (r, u) => <div className="choice">{ACT_OPTS.map((o) => <Option key={o.v} on={r.actividad === o.v} onClick={() => u({ actividad: o.v })} title={o.t} desc={o.d} />)}</div> },
+  { id: 'perfil', fase: 1, titulo: 'Tu experiencia y tu actividad',
+    body: (r, u) => (
+      <div className="stack">
+        <div className="field"><span>Experiencia con el entrenamiento de fuerza</span>
+          <div className="choice">{EXP_OPTS.map((o) => <Option key={o.v} on={r.experiencia === o.v} onClick={() => u({ experiencia: o.v })} title={o.t} desc={o.d} />)}</div>
+        </div>
+        <div className="field"><span>Actividad actual</span>
+          <div className="choice">{ACT_OPTS.map((o) => <Option key={o.v} on={r.actividad === o.v} onClick={() => u({ actividad: o.v })} title={o.t} desc={o.d} />)}</div>
+        </div>
+      </div>) },
   { id: 'disponibilidad', fase: 1, titulo: '¿Cuánto tiempo tienes?',
     body: (r, u) => (
       <div className="stack">
@@ -111,7 +122,7 @@ const STEPS: Step[] = [
           </Notice>
         )}
       </div>) },
-  { id: 'material', fase: 2, titulo: '¿Dónde entrenarás y con qué?',
+  { id: 'material', fase: 2, titulo: 'Dónde y con qué entrenas',
     body: (r, u) => (
       <div className="stack">
         <div className="choice">
@@ -126,36 +137,30 @@ const STEPS: Step[] = [
           </div>
           <p className="small faint">El peso corporal siempre está incluido.</p>
         </div>
-      </div>) },
-  { id: 'preferencias', fase: 2, titulo: 'Preferencias',
-    body: (r, u) => (
-      <div className="stack">
         <div className="field"><span>Actividades aeróbicas que te gustan (opcional)</span>
           <div className="chips">{(Object.keys(AEROBIC_LABEL) as Aerobic[]).map((a) => <Chip key={a} on={r.aerobicoPreferido.includes(a)} onClick={() => u({ aerobicoPreferido: toggle(r.aerobicoPreferido, a) })}>{AEROBIC_LABEL[a]}</Chip>)}</div>
         </div>
         <AvoidPicker r={r} u={u} />
       </div>) },
-  { id: 'recuperacion', fase: 2, titulo: 'Sueño y recuperación',
+  { id: 'recuperacion', fase: 2, titulo: 'Recuperación y últimos detalles', valid: validBody,
     body: (r, u) => (
       <div className="stack">
         <div className="field"><span>Horas de sueño habituales</span><Seg label="Horas de sueño" value={r.sueno} options={SLEEP} onChange={(v) => u({ sueno: v })} /></div>
         <div className="field"><span>¿Cómo te recuperas tras un esfuerzo?</span><Seg label="Recuperación" value={r.recuperacion} options={REC} onChange={(v) => u({ recuperacion: v })} /></div>
-      </div>) },
-  { id: 'indicaciones', fase: 2, titulo: 'Indicaciones profesionales', show: needsIndications,
-    body: (r, u) => (
-      <label className="field"><span>¿Te han dado indicaciones para el ejercicio? (opcional)</span>
-        <textarea id="eval-indicaciones" maxLength={400} value={r.indicacionesProfesionales} onChange={(e) => u({ indicacionesProfesionales: e.target.value })} placeholder="P. ej. evitar cargar peso por encima de la cabeza" />
-        <span className="small faint">Se mostrarán en tu plan como recordatorio. La aplicación no las interpreta clínicamente.</span>
-      </label>) },
-  { id: 'cuerpo', fase: 2, titulo: 'Datos corporales (voluntarios)', show: (r) => r.objetivo === 'composicion' || r.objetivo === 'hipertrofia',
-    valid: (r) => (r.pesoKg != null && !(r.pesoKg >= 30 && r.pesoKg <= 300)) ? 'Peso entre 30 y 300 kg.' : (r.alturaCm != null && !(r.alturaCm >= 120 && r.alturaCm <= 230)) ? 'Altura entre 120 y 230 cm.' : null,
-    body: (r, u) => (
-      <div className="stack">
-        <p className="muted">Solo sirven como punto de partida para tu seguimiento. Puedes dejarlos en blanco.</p>
-        <div className="row">
-          <label className="field" style={{ flex: 1 }}><span>Peso (kg)</span><input id="eval-peso" type="number" inputMode="decimal" value={r.pesoKg ?? ''} onChange={(e) => u({ pesoKg: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
-          <label className="field" style={{ flex: 1 }}><span>Altura (cm)</span><input id="eval-altura" type="number" inputMode="numeric" value={r.alturaCm ?? ''} onChange={(e) => u({ alturaCm: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
-        </div>
+        {needsIndications(r) && (
+          <label className="field"><span>Indicaciones de un profesional para el ejercicio (opcional)</span>
+            <textarea id="eval-indicaciones" maxLength={400} value={r.indicacionesProfesionales} onChange={(e) => u({ indicacionesProfesionales: e.target.value })} placeholder="P. ej. evitar cargar peso por encima de la cabeza" />
+            <span className="small faint">Se mostrarán en tu plan como recordatorio. La aplicación no las interpreta clínicamente.</span>
+          </label>
+        )}
+        {showBody(r) && (
+          <div className="field"><span>Peso y altura (voluntarios, como punto de partida del seguimiento)</span>
+            <div className="row">
+              <label className="field" style={{ flex: 1 }}><span className="small muted">Peso (kg)</span><input id="eval-peso" type="number" inputMode="decimal" value={r.pesoKg ?? ''} onChange={(e) => u({ pesoKg: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
+              <label className="field" style={{ flex: 1 }}><span className="small muted">Altura (cm)</span><input id="eval-altura" type="number" inputMode="numeric" value={r.alturaCm ?? ''} onChange={(e) => u({ alturaCm: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
+            </div>
+          </div>
+        )}
       </div>) },
 ];
 
@@ -219,6 +224,7 @@ export function Summary() {
   const { state, set, go } = useApp();
   const r = state.borrador?.respuestas as R | undefined;
   const [msg, setMsg] = useState<{ motivo: string; faltan?: string[] } | null>(null);
+  const [acepto, setAcepto] = useState<boolean>(!!state.borrador?.respuestas.consentimientoLocal);
   if (!r) {
     return <div className="screen"><Notice>No hay datos de perfil pendientes de revisar.</Notice><button type="button" className="btn" onClick={() => go(state.activeProfileId ? 'inicio' : 'bienvenida')}>Volver</button></div>;
   }
@@ -228,7 +234,7 @@ export function Summary() {
 
   const generar = () => {
     const now = new Date();
-    const profile: Profile = { ...r, nombre: r.nombre.trim(), actualizado: now.toISOString() };
+    const profile: Profile = { ...r, nombre: r.nombre.trim(), actualizado: now.toISOString(), consentimientoLocal: r.consentimientoLocal ?? now.toISOString() };
     const res = generatePlan(profile, now);
     if (!res.ok) { setMsg(res); return; }
     set((s) => {
@@ -245,7 +251,6 @@ export function Summary() {
       <div className="small muted stack" style={{ gap: 4 }}>{children}</div>
     </div>
   );
-  const show = (id: string) => STEPS.find((s) => s.id === id)?.show?.(r) ?? true;
 
   return (
     <div className="screen">
@@ -255,9 +260,9 @@ export function Summary() {
         <p className="muted">Puedes corregir cualquier apartado. {exists && 'Al regenerar, tus registros se conservan.'}</p>
       </div>
       <Section id="identidad" title="Datos básicos"><p>{r.nombre || '—'} · {Number.isFinite(r.edad) ? `${r.edad} años` : 'edad sin indicar'}</p></Section>
-      <Section id="objetivo" title="Objetivo"><p>{GOAL_OPTS.find((o) => o.v === r.objetivo)?.t}</p></Section>
-      <Section id="experiencia" title="Experiencia"><p>{EXP_OPTS.find((o) => o.v === r.experiencia)?.t}</p></Section>
-      <Section id="actividad" title="Actividad actual"><p>{ACT_OPTS.find((o) => o.v === r.actividad)?.t}</p></Section>
+      <Section id="identidad" title="Objetivo"><p>{GOAL_OPTS.find((o) => o.v === r.objetivo)?.t}</p></Section>
+      <Section id="perfil" title="Experiencia"><p>{EXP_OPTS.find((o) => o.v === r.experiencia)?.t}</p></Section>
+      <Section id="perfil" title="Actividad actual"><p>{ACT_OPTS.find((o) => o.v === r.actividad)?.t}</p></Section>
       <Section id="disponibilidad" title="Disponibilidad"><p>{r.dias} días por semana · {r.minutos} min por sesión</p></Section>
       <Section id="salud" title="Limitaciones y salud">
         <p>Zonas: {r.limitaciones.length ? r.limitaciones.map((l) => LIMITATION_LABEL[l]).join(', ') : 'ninguna'}{r.limitacionesTexto && ` · ${r.limitacionesTexto}`}</p>
@@ -265,17 +270,19 @@ export function Summary() {
         <p>Síntomas con el esfuerzo: {yes(r.screening.sintomasEsfuerzo)} · Restricción profesional: {yes(r.screening.restriccionProfesional)} · Embarazo o posparto: {yes(r.screening.embarazoPosparto)}</p>
       </Section>
       <Section id="material" title="Lugar y material"><p>{r.lugar === 'casa' ? 'Casa o exterior' : 'Gimnasio'} · {r.material.map((m) => EQUIPMENT_LABEL[m]).join(', ')}</p></Section>
-      <Section id="preferencias" title="Preferencias">
+      <Section id="material" title="Preferencias">
         <p>Aeróbico: {r.aerobicoPreferido.length ? r.aerobicoPreferido.map((a) => AEROBIC_LABEL[a]).join(', ') : 'sin preferencia'}</p>
         <p>Evitar: {r.evitarEjercicios.length ? r.evitarEjercicios.map((id) => EXERCISE_BY_ID[id]?.nombre).join(', ') : 'nada'}</p>
       </Section>
       <Section id="recuperacion" title="Sueño y recuperación"><p>{SLEEP.find((s) => s.v === r.sueno)?.l} · recuperación {REC.find((s) => s.v === r.recuperacion)?.l.toLowerCase()}</p></Section>
-      {show('indicaciones') && <Section id="indicaciones" title="Indicaciones profesionales"><p>{r.indicacionesProfesionales || 'Ninguna indicada'}</p></Section>}
-      {show('cuerpo') && <Section id="cuerpo" title="Datos corporales"><p>{r.pesoKg ? `${r.pesoKg} kg` : 'Peso no indicado'} · {r.alturaCm ? `${r.alturaCm} cm` : 'altura no indicada'}</p></Section>}
+      {needsIndications(r) && <Section id="recuperacion" title="Indicaciones profesionales"><p>{r.indicacionesProfesionales || 'Ninguna indicada'}</p></Section>}
+      {showBody(r) && <Section id="recuperacion" title="Datos corporales"><p>{r.pesoKg ? `${r.pesoKg} kg` : 'Peso no indicado'} · {r.alturaCm ? `${r.alturaCm} cm` : 'altura no indicada'}</p></Section>}
 
       {!check.ok && <Notice kind={check.faltan ? 'warn' : 'danger'} title="No se puede generar todavía">{check.motivo}{check.faltan && <> Falta: {check.faltan.join(', ')}.</>}</Notice>}
       {msg && <Notice kind="danger">{msg.motivo}</Notice>}
-      <button type="button" className="btn primary block" disabled={!check.ok} onClick={generar}>{exists ? 'Guardar y regenerar plan' : 'Generar mi plan'}</button>
+      <label className="check consent"><input id="eval-consent" type="checkbox" checked={acepto} onChange={(e) => setAcepto(e.target.checked)} />
+        <span>Acepto guardar mi perfil y mis registros en este navegador para personalizar y seguir mi entrenamiento. Puedo exportarlos o borrarlos en cualquier momento desde Ajustes. <span className="faint">No es un servicio sanitario.</span></span></label>
+      <button type="button" className="btn primary block" disabled={!check.ok || !acepto} onClick={generar}>{exists ? 'Guardar y regenerar plan' : 'Generar mi plan'}</button>
       <button type="button" className="btn ghost" onClick={() => { set((s) => ({ ...s, borrador: null })); go(state.activeProfileId ? 'inicio' : 'bienvenida'); }}>Descartar cambios</button>
     </div>
   );

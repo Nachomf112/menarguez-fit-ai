@@ -1,7 +1,7 @@
 import { DAY_NAMES } from '../domain/planner';
 import { weekStart } from '../domain/progression';
 import type { PlannedSession, ProfileData } from '../domain/types';
-import { Notice, Progress, Stat, useApp } from '../ui/kit';
+import { Notice, Progress, Stat, useApp, PageTop } from '../ui/kit';
 
 export const todayIndex = (d = new Date()) => (d.getDay() + 6) % 7;
 
@@ -34,8 +34,7 @@ export function Home() {
   return (
     <div className="screen">
       <div className="stack">
-        <span className="eyebrow">{DAY_NAMES[wd]}</span>
-        <h1>Hola, {pd.profile.nombre.split(' ')[0]}</h1>
+        <PageTop eyebrow={DAY_NAMES[wd]} title={<>Vamos a por ello, <span style={{ color: 'var(--blue)' }}>{pd.profile.nombre.split(' ')[0]}</span></>} tag="Fuerza · Constancia · Equilibrio" />
         {pd.profile.demo && <Notice kind="yellow" title="Perfil de demostración">Los registros y medidas de este perfil son datos de ejemplo inventados.</Notice>}
       </div>
 

@@ -114,3 +114,29 @@ export function downloadText(name: string, text: string, mime: string): boolean 
     return true;
   } catch { return false; }
 }
+
+/** Cabecera de página: etiqueta, titular en mayúsculas y lema a la derecha (escritorio). */
+export function PageTop({ eyebrow, title, sub, tag = 'Tu ritmo. Tu progreso.' }: { eyebrow: string; title: ReactNode; sub?: ReactNode; tag?: string | null }) {
+  return (
+    <div className="pagetop">
+      <div><span className="eyebrow">{eyebrow}</span><h1>{title}</h1>{sub && <p className="muted">{sub}</p>}</div>
+      {tag && <span className="tagline">{tag}</span>}
+    </div>
+  );
+}
+
+/** Gráfico de marca propio: disco de carga con progresión de barras. Decorativo. */
+export function HeroArt() {
+  return (
+    <svg viewBox="0 0 320 260" width="100%" style={{ maxWidth: 340 }} aria-hidden="true">
+      <defs>
+        <linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#3a5f86" /><stop offset="1" stopColor="#0b1724" /></linearGradient>
+      </defs>
+      <circle cx="160" cy="120" r="100" fill="url(#hg)" stroke="#2d5f91" strokeWidth="2" />
+      <circle cx="160" cy="120" r="72" fill="none" stroke="#0080f0" strokeWidth="3" strokeDasharray="300 160" transform="rotate(-110 160 120)" />
+      <circle cx="160" cy="120" r="46" fill="#081321" stroke="#2d5f91" strokeWidth="2" />
+      <circle cx="160" cy="120" r="14" fill="#000" stroke="#4d7aa6" strokeWidth="2" />
+      {[0, 1, 2, 3, 4].map((i) => <rect key={i} x={46 + i * 50} y={232 - (i + 1) * 9} width="28" height={(i + 1) * 9} rx="3" fill={i === 4 ? '#ffc300' : '#0080f0'} opacity={0.35 + i * 0.15} />)}
+    </svg>
+  );
+}

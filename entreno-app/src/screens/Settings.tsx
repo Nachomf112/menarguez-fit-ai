@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { blankProfile } from '../data/demo';
 import { uid } from '../domain/session';
 import { emptyState, exportBackup, exportCsv, parseBackup } from '../storage/store';
-import { downloadText, Notice, useApp } from '../ui/kit';
+import { downloadText, Notice, useApp, PageTop } from '../ui/kit';
 
 export const SOURCES: { t: string; d: string; url: string }[] = [
   { t: 'OMS (2020). Directrices sobre actividad física y hábitos sedentarios', d: '150–300 min semanales de actividad aeróbica moderada y fuerza al menos 2 días en adultos.', url: 'https://www.who.int/publications-detail-redirect/9789240015128' },
@@ -62,7 +62,7 @@ export function Settings() {
 
   return (
     <div className="screen">
-      <div className="stack"><span className="eyebrow">Ajustes</span><h1>Perfil, datos y fuentes</h1></div>
+      <PageTop eyebrow="Tu espacio" title="Perfil, datos y fuentes" tag="Control sobre tus datos" />
 
       <section className="card">
         <h3>Perfiles</h3>

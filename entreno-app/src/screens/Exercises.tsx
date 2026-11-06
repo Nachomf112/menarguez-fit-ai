@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { DIFFICULTY_LABEL, EQUIPMENT_LABEL, EXERCISES, EXERCISE_BY_ID, GROUP_LABEL, LIMITATION_LABEL } from '../data/exercises';
 import { describeSets, exerciseHistory } from '../domain/progression';
 import type { Equipment, MuscleGroup } from '../domain/types';
-import { Chip, Icon, Notice, useApp } from '../ui/kit';
+import { Chip, Icon, Notice, useApp, PageTop } from '../ui/kit';
 import type { Pattern } from '../domain/types';
 
 const PATTERN_LABEL: Record<Pattern, string> = {
@@ -18,8 +18,11 @@ export function Exercises() {
   return <Catalog onOpen={(id) => go('ejercicios', { exerciseId: id })} />;
 }
 
+const GLYPH: Record<MuscleGroup, string> = { piernas: 'PI', pecho: 'PE', espalda: 'ES', hombros: 'HO', brazos: 'BR', tronco: 'TR' };
+
 function Catalog({ onOpen }: { onOpen: (id: string) => void }) {
-  const { pd } = useApp();
+  const { pd, updatePd } = useApp();
+  const toggleFav = (id: string) => updatePd((d) => ({ ...d, favoritos: d.favoritos.includes(id) ? d.favoritos.filter((x) => x !== id) : [...d.favoritos, id] }));
   const [q, setQ] = useState('');
   const [grupo, setGrupo] = useState<MuscleGroup | null>(null);
   const [mat, setMat] = useState<Equipment | null>(null);
@@ -33,10 +36,7 @@ function Catalog({ onOpen }: { onOpen: (id: string) => void }) {
 
   return (
     <div className="screen">
-      <div className="stack">
-        <span className="eyebrow">Catálogo</span>
-        <h1>Ejercicios</h1>
-      </div>
+      <PageTop eyebrow="Biblioteca de movimiento" title="Ejercicios" sub="Técnica clara, material adecuado y alternativas para cada caso." />
       <input id="cat-search" type="search" placeholder="Buscar por nombre o músculo" aria-label="Buscar ejercicios" value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="stack" style={{ gap: 8 }}>
         <div className="chips" aria-label="Grupo muscular">
@@ -51,21 +51,30 @@ function Catalog({ onOpen }: { onOpen: (id: string) => void }) {
         </div>
       </div>
       <p className="small faint" aria-live="polite">{list.length} ejercicios</p>
-      <div className="list">
+      <div className="cardgrid">
         {list.map((e) => (
-          <button type="button" key={e.id} className="item" onClick={() => onOpen(e.id)}>
-            <div>
-              <strong>{e.nombre}</strong>
-              <div className="small muted">{GROUP_LABEL[e.grupo]} · {e.material.map((m) => EQUIPMENT_LABEL[m]).join(', ')}</div>
+          <article key={e.id} className="excard">
+            <div className="head">
+              <span className="glyph" aria-hidden="true">{GLYPH[e.grupo]}</span>
+              <div style={{ minWidth: 0 }}>
+                <span className="eyebrow">{GROUP_LABEL[e.grupo]}</span>
+                <h3>{e.nombre}</h3>
+                <span className="small muted">{e.material.map((m) => EQUIPMENT_LABEL[m]).join(' + ')} · {DIFFICULTY_LABEL[e.dificultad]}</span>
+              </div>
             </div>
-            <div className="row" style={{ flexWrap: 'nowrap' }}>
-              {favs.includes(e.id) && <span style={{ color: 'var(--yellow)' }} aria-label="Favorito">★</span>}
-              <span className="badge">{DIFFICULTY_LABEL[e.dificultad]}</span>
+            <div className="foot">
+              <button type="button" className="btn sm" onClick={() => onOpen(e.id)} aria-label={`Ver técnica: ${e.nombre}`}>Ver técnica</button>
+              {pd && (
+                <button type="button" className="iconbtn" aria-pressed={favs.includes(e.id)} aria-label={favs.includes(e.id) ? `Quitar ${e.nombre} de favoritos` : `Añadir ${e.nombre} a favoritos`}
+                  style={{ color: favs.includes(e.id) ? 'var(--yellow)' : 'var(--muted)' }} onClick={() => toggleFav(e.id)}>
+                  <Icon name="star" filled={favs.includes(e.id)} size={18} />
+                </button>
+              )}
             </div>
-          </button>
+          </article>
         ))}
-        {list.length === 0 && <Notice>No hay ejercicios con esos filtros.</Notice>}
       </div>
+      {list.length === 0 && <Notice>No hay ejercicios con esos filtros.</Notice>}
     </div>
   );
 }

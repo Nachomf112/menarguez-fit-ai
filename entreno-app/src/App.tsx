@@ -84,6 +84,7 @@ export function App() {
 
   return (
     <Ctx.Provider value={ctx}>
+      <div className={`shell ${showNav ? 'has-nav' : ''}`}>
       <div className="app">
         <header className="topbar">
           <button type="button" className="brand" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'inherit' }}
@@ -101,6 +102,12 @@ export function App() {
       </div>
       {showNav && (
         <nav className="bottomnav" aria-label="Navegación principal">
+          <div className="brandside">
+            <button type="button" className="brand" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'inherit' }} onClick={() => go('inicio')} aria-label="Ir al inicio">
+              <span>Menarguez</span><b>Fit</b><small>IA</small>
+            </button>
+            <span className="tag">Entrena con intención</span>
+          </div>
           <ul>
             {nav.map((n) => (
               <li key={n.r}>
@@ -110,8 +117,10 @@ export function App() {
               </li>
             ))}
           </ul>
+          <div className="navfoot"><b>Tu progreso empieza aquí</b><span>Entrenamiento a tu medida. Una sesión cada vez.</span></div>
         </nav>
       )}
+      </div>
     </Ctx.Provider>
   );
 }

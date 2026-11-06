@@ -39,7 +39,7 @@ const shot = (n) => page.screenshot({ path: `${SHOTS}/${n}.png`, fullPage: true 
 const next = () => page.getByRole('button', { name: 'Siguiente' }).click();
 
 await page.goto('http://localhost:4317/');
-await page.getByRole('heading', { name: /Tu programa/ }).waitFor();
+await page.getByRole('heading', { name: /Es avanzar/i }).waitFor();
 await shot('01-bienvenida'); await noOverflow('bienvenida');
 
 // Teclado: llegar a "Crear mi perfil" con Tab y activar con Enter
@@ -47,7 +47,7 @@ let reached = false;
 for (let i = 0; i < 8 && !reached; i++) { await page.keyboard.press('Tab'); reached = (await page.evaluate(() => document.activeElement?.textContent)) === 'Crear mi perfil'; }
 check('teclado alcanza el botón principal', reached);
 await page.keyboard.press('Enter');
-await page.getByRole('heading', { name: '¿Cómo te llamamos?' }).waitFor();
+await page.getByRole('heading', { name: 'Empecemos por ti' }).waitFor();
 
 // Validación: edad < 18
 await page.fill('#eval-nombre', 'Prueba');
@@ -55,9 +55,8 @@ await page.fill('#eval-edad', '16');
 await next();
 check('rechaza menores de 18', await page.getByText('solo para mayores de 18').isVisible());
 await page.fill('#eval-edad', '45');
-await next();
 await page.getByRole('button', { name: /Salud y forma general/ }).click(); await next();
-await page.getByRole('button', { name: /^Principiante/ }).click(); await next();
+await page.getByRole('button', { name: /^Principiante/ }).click();
 await page.getByRole('button', { name: /^Algo activa/ }).click(); await next();
 await page.getByRole('button', { name: '2', exact: true }).click();
 await page.getByRole('button', { name: '45 min' }).click();
@@ -73,7 +72,8 @@ await shot('03-evaluacion-salud'); await noOverflow('evaluación salud');
 await next();
 check('aviso de fase 2', await page.getByText('Fase 1 completada').isVisible());
 await page.getByRole('button', { name: 'Mancuernas', exact: true }).click(); await next();
-await next(); // preferencias
+const pasos = await page.locator('.num').first().innerText();
+check('evaluación en 6 pantallas', pasos.trim() === '6 / 6', pasos);
 await page.getByRole('button', { name: 'Ver resumen' }).click();
 await page.getByRole('heading', { name: 'Revisa antes de generar' }).waitFor();
 await shot('04-resumen'); await noOverflow('resumen');
@@ -81,6 +81,8 @@ await shot('04-resumen'); await noOverflow('resumen');
 await page.getByRole('button', { name: 'Editar' }).nth(4).click();
 await page.getByRole('heading', { name: '¿Cuánto tiempo tienes?' }).waitFor();
 await page.getByRole('button', { name: 'Guardar y volver' }).click();
+check('generar exige consentimiento', await page.getByRole('button', { name: 'Generar mi plan' }).isDisabled());
+await page.check('#eval-consent');
 await page.getByRole('button', { name: 'Generar mi plan' }).click();
 await page.getByRole('heading', { name: 'Semana de entrenamiento' }).waitFor();
 const fuerza = await page.locator('.week .item').count();
@@ -116,8 +118,15 @@ await page.locator('.sets').waitFor();
 check('recargar conserva la serie registrada', (await page.getByRole('button', { name: 'Marcar serie 1 como hecha' }).getAttribute('aria-pressed')) === 'true'
   && (await page.inputValue('#set-reps-0-0')) === (unitIsSec ? '25' : '10'));
 check('recargar conserva el temporizador en pausa', await page.getByText('En pausa').isVisible());
+// Sustituir con una serie ya hecha: se conserva y se añade la alternativa
+const tabsAntes = await page.getByRole('tab').count();
+await page.getByRole('button', { name: 'Sustituir ejercicio' }).click();
+check('aviso de series conservadas', await page.getByText(/series ya hechas se conservan/).isVisible());
+await page.locator('.list .item').first().click();
+check('sustituir con series hechas no las pierde', (await page.getByRole('tab').count()) === tabsAntes + 1
+  && (await page.getByRole('tab', { name: '1 ✓' }).count()) === 1);
 // Sustituir el segundo ejercicio
-await page.getByRole('tab', { name: '2' }).click();
+await page.getByRole('tab', { name: '3', exact: true }).click();
 const before = await page.locator('.card.accent h2').innerText();
 await page.getByRole('button', { name: 'Sustituir ejercicio' }).click();
 await page.locator('.list .item').first().click();
@@ -144,13 +153,13 @@ check('historial con la sesión', (await page.locator('.list .item').count()) ==
 
 // Catálogo
 await page.locator('.bottomnav').getByRole('button', { name: /Ejercicios/ }).click();
-const total = await page.locator('.list .item').count();
+const total = await page.locator('.excard').count();
 check('catálogo ≥ 40 ejercicios', total >= 40, String(total));
 await page.getByRole('button', { name: 'Bandas elásticas', exact: true }).click();
-const bandas = await page.locator('.list .item').count();
+const bandas = await page.locator('.excard').count();
 check('filtro por material', bandas > 0 && bandas < total, String(bandas));
 await page.fill('#cat-search', 'remo');
-await page.locator('.list .item').first().click();
+await page.locator('.excard').first().getByRole('button', { name: /Ver técnica/ }).click();
 await page.getByText('Errores habituales').waitFor();
 await page.getByRole('button', { name: 'Añadir a favoritos' }).click();
 check('favorito marcado', await page.getByRole('button', { name: 'Quitar de favoritos' }).isVisible());
@@ -185,7 +194,7 @@ await shot('13-ajustes'); await noOverflow('ajustes');
 await page.getByRole('button', { name: 'Borrar todos los datos' }).click();
 await page.fill('#confirm-borrar', 'BORRAR');
 await page.getByRole('button', { name: 'Confirmar borrado' }).click();
-await page.getByRole('heading', { name: /Tu programa/ }).waitFor();
+await page.getByRole('heading', { name: /Es avanzar/i }).waitFor();
 check('borrado completo', (await page.locator('.list .item').count()) === 0);
 await page.getByRole('button', { name: 'Ajustes y datos' }).click();
 await page.fill('#import-text', '{"app":"otra"}');
@@ -217,6 +226,14 @@ check('los perfiles no mezclan registros', demoCount > 1 && (await page.locator(
 await page.setViewportSize({ width: 1280, height: 900 });
 await page.locator('.bottomnav').getByRole('button', { name: /Mi plan/ }).click();
 await shot('15-escritorio-plan'); await noOverflow('escritorio');
+const navBox = await page.locator('.bottomnav').boundingBox();
+check('menú lateral en escritorio', navBox && navBox.x === 0 && navBox.width < 300 && navBox.height > 800, JSON.stringify(navBox));
+await page.locator('.bottomnav').getByRole('button', { name: /Ejercicios/ }).click();
+await page.fill('#cat-search', '');
+await shot('16-escritorio-catalogo');
+await page.evaluate(() => { location.hash = 'bienvenida'; });
+await page.waitForTimeout(300);
+await shot('17-escritorio-bienvenida'); await noOverflow('escritorio bienvenida');
 
 check('sin errores de JavaScript', errors.length === 0, errors.join(' | '));
 await browser.close(); server.close();

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { EXERCISE_BY_ID } from '../data/exercises';
 import { AEROBIC_LABEL, DAY_NAMES, generatePlan, progressionCriterion, rirText, substitutes } from '../domain/planner';
 import { suggestFor } from '../domain/progression';
-import { Notice, useApp } from '../ui/kit';
+import { Notice, useApp, PageTop } from '../ui/kit';
 import { doneThisWeek, todayIndex } from './Home';
 
 export function PlanScreen() {
@@ -21,11 +21,7 @@ export function PlanScreen() {
 
   return (
     <div className="screen">
-      <div className="stack">
-        <span className="eyebrow">Mi plan</span>
-        <h1>Semana de entrenamiento</h1>
-        <p className="muted">{plan.sesiones.length} sesiones · {plan.diasDescanso.length} días de descanso. Generado el {new Date(plan.creado).toLocaleDateString('es-ES')}.</p>
-      </div>
+      <PageTop eyebrow="Mi plan" title="Semana de entrenamiento" sub={`${plan.sesiones.length} sesiones · ${plan.diasDescanso.length} días de descanso · generado el ${new Date(plan.creado).toLocaleDateString('es-ES')}`} />
       <div className="week">
         {DAY_NAMES.map((name, d) => {
           const s = plan.sesiones.find((x) => x.dia === d);
@@ -48,6 +44,18 @@ export function PlanScreen() {
         })}
       </div>
       <p className="small muted">{plan.sugerenciaDescanso}</p>
+      <div className="two">
+        <div className="card">
+          <span className="eyebrow">Antes de empezar</span>
+          <h2>Control antes que kilos</h2>
+          <p className="small muted">Calienta como indica cada sesión y haz una serie ligera de práctica. Elige una carga con la que completes el rango con buena técnica y te queden las repeticiones en reserva indicadas. La duración incluye descansos y es aproximada.</p>
+        </div>
+        <div className="card">
+          <span className="eyebrow">Progresión</span>
+          <h2>Gana repeticiones primero</h2>
+          <p className="small muted">Cuando completes todas las series en el tope del rango con técnica estable, esfuerzo adecuado y sin molestias, sube la carga mínima disponible. No hay aumentos automáticos: tú decides.</p>
+        </div>
+      </div>
       {plan.notas.length > 0 && (
         <div className="card">
           <h3>Notas del plan</h3>

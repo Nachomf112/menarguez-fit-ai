@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { EXERCISE_BY_ID } from '../data/exercises';
 import { exerciseHistory, weekStart, weeklyReview, type Suggestion } from '../domain/progression';
 import type { Measure } from '../domain/types';
-import { LineChart, Notice, Seg, Stat, useApp } from '../ui/kit';
+import { LineChart, Notice, Seg, Stat, useApp, PageTop } from '../ui/kit';
 
 const STATUS_BADGE = { completada: 'ok', parcial: 'warn', cancelada: 'danger' } as const;
 const STATUS_LABEL = { completada: 'Completada', parcial: 'Parcial', cancelada: 'Cancelada' } as const;
@@ -15,8 +15,7 @@ export function ProgressScreen() {
   return (
     <div className="screen">
       <div className="stack">
-        <span className="eyebrow">Progreso</span>
-        <h1>Seguimiento</h1>
+        <PageTop eyebrow="Tu evolución" title="Seguimiento" sub="Registros reales, sin comparaciones inventadas." />
         {pd.profile.demo && <Notice kind="yellow">Perfil de demostración: los datos mostrados son de ejemplo.</Notice>}
       </div>
       <Seg label="Sección" value={tab} onChange={setTab} options={[
