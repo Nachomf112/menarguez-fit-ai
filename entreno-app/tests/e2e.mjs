@@ -1,0 +1,225 @@
+// Recorrido principal en navegador (Chromium, viewport móvil).
+// Uso: npm run build && node tests/e2e.mjs [carpeta_capturas]
+import { createRequire } from 'node:module';
+const { chromium } = createRequire(import.meta.url)('playwright');
+import { createServer } from 'node:http';
+import { readFileSync, mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const SHOTS = process.argv[2] || 'tests/shots';
+mkdirSync(SHOTS, { recursive: true });
+const html = readFileSync('dist/entreno/index.html');
+const server = createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); }).listen(4317);
+const UMD = {
+  'react.production.min.js': resolve('node_modules/react/umd/react.production.min.js'),
+  'react-dom.production.min.js': resolve('node_modules/react-dom/umd/react-dom.production.min.js'),
+};
+
+const results = [];
+const check = (name, cond, extra = '') => { results.push({ name, ok: !!cond }); console.log(`${cond ? 'OK  ' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); };
+
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true });
+const page = await ctx.newPage();
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => { if (m.type() === 'error' && !/fonts|ERR_|net::/.test(m.text())) errors.push(m.text()); });
+await ctx.route('**/*', (route) => {
+  const url = route.request().url();
+  const f = Object.keys(UMD).find((k) => url.endsWith(k));
+  if (f) return route.fulfill({ path: UMD[f], contentType: 'application/javascript' });
+  if (url.startsWith('http://localhost:4317')) return route.continue();
+  return route.abort();
+});
+const noOverflow = async (label) => {
+  const o = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  check(`sin scroll horizontal: ${label}`, o <= 1, `exceso ${o}px`);
+};
+const shot = (n) => page.screenshot({ path: `${SHOTS}/${n}.png`, fullPage: true });
+const next = () => page.getByRole('button', { name: 'Siguiente' }).click();
+
+await page.goto('http://localhost:4317/');
+await page.getByRole('heading', { name: /Tu programa/ }).waitFor();
+await shot('01-bienvenida'); await noOverflow('bienvenida');
+
+// Teclado: llegar a "Crear mi perfil" con Tab y activar con Enter
+let reached = false;
+for (let i = 0; i < 8 && !reached; i++) { await page.keyboard.press('Tab'); reached = (await page.evaluate(() => document.activeElement?.textContent)) === 'Crear mi perfil'; }
+check('teclado alcanza el botón principal', reached);
+await page.keyboard.press('Enter');
+await page.getByRole('heading', { name: '¿Cómo te llamamos?' }).waitFor();
+
+// Validación: edad < 18
+await page.fill('#eval-nombre', 'Prueba');
+await page.fill('#eval-edad', '16');
+await next();
+check('rechaza menores de 18', await page.getByText('solo para mayores de 18').isVisible());
+await page.fill('#eval-edad', '45');
+await next();
+await page.getByRole('button', { name: /Salud y forma general/ }).click(); await next();
+await page.getByRole('button', { name: /^Principiante/ }).click(); await next();
+await page.getByRole('button', { name: /^Algo activa/ }).click(); await next();
+await page.getByRole('button', { name: '2', exact: true }).click();
+await page.getByRole('button', { name: '45 min' }).click();
+await shot('02-evaluacion-disponibilidad');
+// Recargar conserva respuestas y paso
+await page.reload();
+await page.getByRole('heading', { name: '¿Cuánto tiempo tienes?' }).waitFor({ timeout: 5000 }).catch(() => {});
+check('recargar conserva la evaluación', await page.getByRole('heading', { name: '¿Cuánto tiempo tienes?' }).isVisible()
+  && (await page.getByRole('button', { name: '45 min' }).getAttribute('aria-pressed')) === 'true');
+await next();
+await page.getByRole('heading', { name: /Lesiones/ }).waitFor();
+await shot('03-evaluacion-salud'); await noOverflow('evaluación salud');
+await next();
+check('aviso de fase 2', await page.getByText('Fase 1 completada').isVisible());
+await page.getByRole('button', { name: 'Mancuernas', exact: true }).click(); await next();
+await next(); // preferencias
+await page.getByRole('button', { name: 'Ver resumen' }).click();
+await page.getByRole('heading', { name: 'Revisa antes de generar' }).waitFor();
+await shot('04-resumen'); await noOverflow('resumen');
+// Editar desde el resumen
+await page.getByRole('button', { name: 'Editar' }).nth(4).click();
+await page.getByRole('heading', { name: '¿Cuánto tiempo tienes?' }).waitFor();
+await page.getByRole('button', { name: 'Guardar y volver' }).click();
+await page.getByRole('button', { name: 'Generar mi plan' }).click();
+await page.getByRole('heading', { name: 'Semana de entrenamiento' }).waitFor();
+const fuerza = await page.locator('.week .item').count();
+check('principiante 2 días → 2 sesiones', fuerza === 2, `${fuerza}`);
+await shot('05-plan'); await noOverflow('plan');
+
+// Detalle de sesión
+await page.locator('.week .item').first().click();
+await page.getByText('Calentamiento').waitFor();
+const detalleTxt = await page.locator('main').innerText();
+check('detalle con intensidad explicada', /podrías hacer unas 3 repeticiones más/.test(detalleTxt));
+check('detalle no asigna kilos iniciales', !/\d+\s?kg/.test(detalleTxt.split('Vuelta a la calma')[0]));
+await shot('06-detalle'); await noOverflow('detalle');
+
+// Entrenar
+await page.getByRole('button', { name: 'Empezar esta sesión' }).click();
+await page.getByRole('button', { name: 'Empezar sesión' }).click();
+await page.locator('.sets').waitFor();
+// Marcar sin datos → aviso
+await page.getByRole('button', { name: 'Marcar serie 1 como hecha' }).click();
+check('exige anotar repeticiones', await page.getByText(/Anota las repeticiones|Anota los segundos/).isVisible());
+const hasKg = await page.locator('#set-kg-0-0').count();
+if (hasKg) await page.fill('#set-kg-0-0', '8');
+const unitIsSec = await page.locator('.setrow.head').innerText().then((t) => /segundos/.test(t));
+await page.fill('#set-reps-0-0', unitIsSec ? '25' : '10');
+await page.getByRole('button', { name: 'Marcar serie 1 como hecha' }).click();
+check('temporizador de descanso aparece', await page.locator('.timer').isVisible());
+await page.getByRole('button', { name: 'Pausa' }).click();
+check('temporizador en pausa', await page.getByText('En pausa').isVisible());
+await shot('07-entrenando'); await noOverflow('entrenando');
+await page.reload();
+await page.locator('.sets').waitFor();
+check('recargar conserva la serie registrada', (await page.getByRole('button', { name: 'Marcar serie 1 como hecha' }).getAttribute('aria-pressed')) === 'true'
+  && (await page.inputValue('#set-reps-0-0')) === (unitIsSec ? '25' : '10'));
+check('recargar conserva el temporizador en pausa', await page.getByText('En pausa').isVisible());
+// Sustituir el segundo ejercicio
+await page.getByRole('tab', { name: '2' }).click();
+const before = await page.locator('.card.accent h2').innerText();
+await page.getByRole('button', { name: 'Sustituir ejercicio' }).click();
+await page.locator('.list .item').first().click();
+const after = await page.locator('.card.accent h2').innerText();
+check('sustituir cambia el ejercicio', before !== after, `${before} → ${after}`);
+check('muestra a quién sustituye', await page.getByText(`Sustituye a ${before}`).isVisible());
+await page.getByRole('button', { name: 'Terminar sesión' }).click();
+await page.getByRole('button', { name: '7', exact: true }).first().click();
+await page.getByRole('button', { name: 'Guardar sesión' }).click();
+await page.getByText('Parcial').first().waitFor();
+check('sesión parcial distinguida', await page.locator('.badge.warn', { hasText: 'Parcial' }).isVisible());
+await shot('08-resumen-sesion'); await noOverflow('resumen sesión');
+
+// Progreso
+await page.getByRole('button', { name: 'Ver progreso' }).click();
+await page.getByRole('heading', { name: 'Seguimiento' }).waitFor();
+await shot('09-progreso-semana'); await noOverflow('progreso');
+await page.getByRole('button', { name: 'Ejercicios', exact: true }).first().click();
+check('datos insuficientes no generan conclusiones', await page.getByText(/Datos insuficientes/).isVisible());
+await page.getByRole('button', { name: 'Calendario' }).click();
+await shot('10-calendario');
+await page.getByRole('button', { name: 'Historial' }).click();
+check('historial con la sesión', (await page.locator('.list .item').count()) === 1);
+
+// Catálogo
+await page.locator('.bottomnav').getByRole('button', { name: /Ejercicios/ }).click();
+const total = await page.locator('.list .item').count();
+check('catálogo ≥ 40 ejercicios', total >= 40, String(total));
+await page.getByRole('button', { name: 'Bandas elásticas', exact: true }).click();
+const bandas = await page.locator('.list .item').count();
+check('filtro por material', bandas > 0 && bandas < total, String(bandas));
+await page.fill('#cat-search', 'remo');
+await page.locator('.list .item').first().click();
+await page.getByText('Errores habituales').waitFor();
+await page.getByRole('button', { name: 'Añadir a favoritos' }).click();
+check('favorito marcado', await page.getByRole('button', { name: 'Quitar de favoritos' }).isVisible());
+check('demostración visual señalada como pendiente', await page.getByText('Demostración visual pendiente').isVisible());
+await shot('11-ficha'); await noOverflow('ficha');
+
+// Nutrición
+await page.locator('.bottomnav').getByRole('button', { name: /Inicio/ }).click();
+await page.getByRole('button', { name: 'Conocer el módulo' }).click();
+await page.getByRole('button', { name: 'Activar nutrición' }).click();
+await page.getByRole('button', { name: 'Vegetariana', exact: true }).click();
+await page.getByRole('button', { name: 'Gluten', exact: true }).click();
+await page.getByRole('button', { name: 'Generar menú semanal' }).click();
+await page.getByRole('heading', { name: 'Menú semanal' }).waitFor();
+const menuTxt = await page.locator('main').innerText();
+check('menú vegetariano sin carne ni pescado', !/pollo|merluza|salmón|atún|ternera|pavo|gambas/i.test(menuTxt));
+check('menú indica crudo/cocido', /en crudo|cocido|tal cual/.test(menuTxt));
+check('sin estimación energética sin datos corporales', !/kcal\/día/.test(menuTxt));
+await shot('12-nutricion'); await noOverflow('nutrición');
+await page.getByRole('button', { name: 'Lista de compra' }).click();
+check('lista de compra', (await page.locator('tbody tr').count()) > 5);
+
+// Exportar, borrar e importar
+await page.getByRole('button', { name: 'Ajustes y datos' }).click();
+await page.getByRole('button', { name: 'Exportar copia (JSON)' }).click();
+const backup = await page.inputValue('#export-text');
+check('exportación JSON', backup.includes('"app": "menarguez-fit-ia"'));
+await page.getByRole('button', { name: 'Exportar registros (CSV)' }).click();
+const csv = await page.inputValue('#export-text');
+check('exportación CSV', csv.includes('perfil;fecha;sesion;estado') && csv.includes('Prueba'));
+await shot('13-ajustes'); await noOverflow('ajustes');
+await page.getByRole('button', { name: 'Borrar todos los datos' }).click();
+await page.fill('#confirm-borrar', 'BORRAR');
+await page.getByRole('button', { name: 'Confirmar borrado' }).click();
+await page.getByRole('heading', { name: /Tu programa/ }).waitFor();
+check('borrado completo', (await page.locator('.list .item').count()) === 0);
+await page.getByRole('button', { name: 'Ajustes y datos' }).click();
+await page.fill('#import-text', '{"app":"otra"}');
+await page.getByRole('button', { name: 'Validar' }).click();
+check('importación rechaza archivos no válidos', await page.getByText('No se puede importar').isVisible());
+await page.fill('#import-text', backup);
+await page.getByRole('button', { name: 'Validar' }).click();
+await page.getByRole('button', { name: 'Importar y reemplazar' }).click();
+check('importación restaura el perfil', await page.getByText('Datos importados').isVisible() && await page.locator('.badge', { hasText: 'Prueba' }).isVisible());
+
+// Perfil demo: separado y sin mezclar registros
+await page.getByRole('button', { name: 'Ir al inicio' }).click();
+await page.evaluate(() => { location.hash = 'bienvenida'; });
+await page.getByRole('button', { name: 'Ver perfil de demostración' }).click();
+await page.getByText('Perfil de demostración').first().waitFor();
+await page.locator('.bottomnav').getByRole('button', { name: /Progreso/ }).click();
+await page.getByRole('button', { name: 'Historial' }).click();
+const demoCount = await page.locator('.list .item').count();
+await page.getByRole('button', { name: 'Ejercicios', exact: true }).first().click();
+check('demo muestra evolución con datos de ejemplo', await page.locator('svg.chart').first().isVisible());
+await shot('14-demo-progreso');
+await page.getByRole('button', { name: 'Ajustes y datos' }).click();
+await page.locator('.item', { hasText: 'Prueba' }).click();
+await page.locator('.bottomnav').getByRole('button', { name: /Progreso/ }).click();
+await page.getByRole('button', { name: 'Historial' }).click();
+check('los perfiles no mezclan registros', demoCount > 1 && (await page.locator('.list .item').count()) === 1, `demo ${demoCount}`);
+
+// Escritorio
+await page.setViewportSize({ width: 1280, height: 900 });
+await page.locator('.bottomnav').getByRole('button', { name: /Mi plan/ }).click();
+await shot('15-escritorio-plan'); await noOverflow('escritorio');
+
+check('sin errores de JavaScript', errors.length === 0, errors.join(' | '));
+await browser.close(); server.close();
+const failed = results.filter((r) => !r.ok);
+console.log(`\n${results.length - failed.length}/${results.length} comprobaciones superadas`);
+process.exit(failed.length ? 1 : 0);
