@@ -1,9 +1,11 @@
 import { blankProfile, DEMO_ID, makeDemo } from '../data/demo';
 import { uid } from '../domain/session';
+import { useCloudApi } from '../cloud/useCloud';
 import { HeroArt, useApp, Notice } from '../ui/kit';
 
 export function Welcome() {
   const { state, set, go } = useApp();
+  const cloud = useCloudApi();
   const perfiles = Object.values(state.perfiles);
 
   const nuevo = () => {
@@ -39,6 +41,7 @@ export function Welcome() {
               <button type="button" className="btn primary" onClick={nuevo}>Crear mi perfil</button>
             )}
             <button type="button" className="btn" onClick={demo}>Ver perfil de demostración</button>
+            {cloud.enabled && !cloud.email && <button type="button" className="btn ghost" onClick={() => go('cuenta')}>Ya tengo cuenta</button>}
           </div>
         </div>
         <div className="art stack" style={{ justifyItems: 'center' }}><HeroArt /><span className="caption">Construye tu propia fuerza</span></div>
@@ -68,9 +71,13 @@ export function Welcome() {
       )}
 
       <section className="stack">
-        <Notice title="Tus datos se quedan en este navegador">
-          No se envían a ningún servidor ni se sincronizan entre dispositivos. Puedes exportar una copia en Ajustes.
-        </Notice>
+        {cloud.phase === 'activa' ? (
+          <Notice title="Sincronizado con tu cuenta">Tus perfiles se guardan en este navegador y en tu cuenta. Gestiona tus datos en Cuenta.</Notice>
+        ) : (
+          <Notice title="Tus datos se quedan en este navegador">
+            No se envían a ningún servidor ni se sincronizan entre dispositivos{cloud.enabled ? ' salvo que crees una cuenta y lo autorices' : ''}. Puedes exportar una copia en Ajustes.
+          </Notice>
+        )}
         <Notice kind="yellow" title="Orientación general">
           Esta aplicación no diagnostica ni sustituye a profesionales sanitarios. Uso exclusivo para mayores de 18 años.
         </Notice>

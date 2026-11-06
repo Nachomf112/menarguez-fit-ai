@@ -1,8 +1,8 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import type { AppState, ProfileData } from '../domain/types';
 
-export type Route = 'bienvenida' | 'evaluacion' | 'resumen' | 'inicio' | 'plan' | 'sesion' | 'entrenar' | 'ejercicios' | 'progreso' | 'nutricion' | 'ajustes';
-export const ROUTES: Route[] = ['bienvenida', 'evaluacion', 'resumen', 'inicio', 'plan', 'sesion', 'entrenar', 'ejercicios', 'progreso', 'nutricion', 'ajustes'];
+export type Route = 'bienvenida' | 'evaluacion' | 'resumen' | 'inicio' | 'plan' | 'sesion' | 'entrenar' | 'ejercicios' | 'progreso' | 'nutricion' | 'ajustes' | 'cuenta';
+export const ROUTES: Route[] = ['bienvenida', 'evaluacion', 'resumen', 'inicio', 'plan', 'sesion', 'entrenar', 'ejercicios', 'progreso', 'nutricion', 'ajustes', 'cuenta'];
 
 export interface Selection { sessionId?: string; exerciseId?: string; summaryId?: string; editStep?: string }
 
@@ -60,6 +60,7 @@ const ICONS: Record<string, string> = {
   gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   star: 'M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z',
   back: 'M15 18l-6-6 6-6',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
 };
 export function Icon({ name, size = 22, filled = false }: { name: keyof typeof ICONS | string; size?: number; filled?: boolean }) {
   return (

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { blankProfile } from '../data/demo';
 import { uid } from '../domain/session';
 import { emptyState, exportBackup, exportCsv, parseBackup } from '../storage/store';
+import { useCloudApi } from '../cloud/useCloud';
 import { downloadText, Notice, useApp, PageTop } from '../ui/kit';
 
 export const SOURCES: { t: string; d: string; url: string }[] = [
@@ -18,6 +19,8 @@ export const SOURCES: { t: string; d: string; url: string }[] = [
 
 export function Settings() {
   const { state, set, pd, go, persisted } = useApp();
+  const cloud = useCloudApi();
+  const synced = cloud.phase === 'activa';
   const [out, setOut] = useState<{ title: string; text: string } | null>(null);
   const [imp, setImp] = useState('');
   const [impMsg, setImpMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -83,9 +86,19 @@ export function Settings() {
         </div>
       </section>
 
+      {cloud.enabled && (
+        <section className="card">
+          <h3>Cuenta</h3>
+          <p className="small muted">{cloud.email ? `Sesión iniciada como ${cloud.email}. ${synced ? 'Sincronización activada.' : 'Sincronización desactivada.'}` : 'Crea una cuenta para guardar tu progreso y usarlo en varios dispositivos.'}</p>
+          <div className="row"><button type="button" className="btn" onClick={() => go('cuenta')}>{cloud.email ? 'Gestionar cuenta' : 'Entrar o crear cuenta'}</button></div>
+        </section>
+      )}
+
       <section className="card">
         <h3>Tus datos</h3>
-        <Notice>Los datos se guardan solo en este navegador{persisted ? '' : ' (ahora mismo no se pueden guardar)'}. No se sincronizan entre dispositivos ni se envían a ningún servidor. Si borras los datos del navegador, se pierden: exporta una copia de vez en cuando.</Notice>
+        {synced
+          ? <Notice>Los perfiles se guardan en este navegador y en tu cuenta. Los cambios y borrados de aquí se aplican también en la cuenta (salvo el perfil de demostración).</Notice>
+          : <Notice>Los datos se guardan solo en este navegador{persisted ? '' : ' (ahora mismo no se pueden guardar)'}. No se sincronizan entre dispositivos ni se envían a ningún servidor. Si borras los datos del navegador, se pierden: exporta una copia de vez en cuando.</Notice>}
         <div className="row">
           <button type="button" className="btn" onClick={doExport}>Exportar copia (JSON)</button>
           {pd && <button type="button" className="btn" onClick={doCsv}>Exportar registros (CSV)</button>}
@@ -110,7 +123,7 @@ export function Settings() {
         <h3>Borrar datos</h3>
         {confirmDel ? (
           <div className="stack">
-            <Notice kind="danger">{confirmDel === 'perfil' ? `Se borrará el perfil "${pd?.profile.nombre}" con todos sus registros.` : 'Se borrarán todos los perfiles y registros de este navegador.'} No se puede deshacer. Escribe BORRAR para confirmar.</Notice>
+            <Notice kind="danger">{confirmDel === 'perfil' ? `Se borrará el perfil "${pd?.profile.nombre}" con todos sus registros${synced && !pd?.profile.demo ? ', también de tu cuenta' : ''}.` : (synced ? 'Se borrarán todos los perfiles y registros de este navegador y de tu cuenta.' : 'Se borrarán todos los perfiles y registros de este navegador.')} No se puede deshacer. Escribe BORRAR para confirmar.</Notice>
             <input id="confirm-borrar" type="text" value={typed} onChange={(e) => setTyped(e.target.value)} aria-label="Escribe BORRAR para confirmar" />
             <div className="row">
               <button type="button" className="btn danger" disabled={typed.trim().toUpperCase() !== 'BORRAR'} onClick={confirmDel === 'perfil' ? deleteProfile : deleteAll}>Confirmar borrado</button>
@@ -137,7 +150,7 @@ export function Settings() {
           <li>Orientación general sobre ejercicio. No diagnostica ni sustituye a médicos, fisioterapeutas o dietistas-nutricionistas.</li>
           <li>Planificación por reglas, sin IA generativa. No requiere conexión ni claves.</li>
           <li>Carrera: de 400 m a media maratón. La maratón no se incluye en esta versión.</li>
-          <li>Pendiente: demostraciones visuales de los ejercicios, cuenta de usuario y sincronización, importación de relojes deportivos, informes HTML corporativos.</li>
+          <li>Pendiente: demostraciones visuales de los ejercicios, importación de relojes deportivos, informes HTML corporativos.</li>
           <li>Solo para mayores de 18 años.</li>
         </ul>
       </section>

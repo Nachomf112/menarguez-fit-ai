@@ -11,6 +11,8 @@ import { Exercises } from './screens/Exercises';
 import { ProgressScreen } from './screens/Progress';
 import { Nutrition } from './screens/Nutrition';
 import { Settings } from './screens/Settings';
+import { Account } from './screens/Account';
+import { CloudCtx, useCloud } from './cloud/useCloud';
 
 const repo = new LocalRepository();
 const NEEDS_PROFILE: Route[] = ['inicio', 'plan', 'sesion', 'entrenar', 'progreso', 'nutricion'];
@@ -26,6 +28,7 @@ export function App() {
   const [route, setRoute] = useState<Route>(() => readHash() ?? (repo.load().activeProfileId ? 'inicio' : 'bienvenida'));
   const [sel, setSel] = useState<Selection>({});
   const first = useRef(true);
+  const cloud = useCloud(state, setState);
 
   useEffect(() => { setPersisted(repo.save(state)); }, [state]);
   useEffect(() => {
@@ -73,6 +76,7 @@ export function App() {
       case 'progreso': return <ProgressScreen />;
       case 'nutricion': return <Nutrition />;
       case 'ajustes': return <Settings />;
+      case 'cuenta': return <Account />;
     }
   })();
 
@@ -84,6 +88,7 @@ export function App() {
 
   return (
     <Ctx.Provider value={ctx}>
+      <CloudCtx.Provider value={cloud}>
       <div className={`shell ${showNav ? 'has-nav' : ''}`}>
       <div className="app">
         <header className="topbar">
@@ -93,10 +98,25 @@ export function App() {
           </button>
           <span className="spacer" />
           {pd && <span className={`badge ${pd.profile.demo ? 'demo' : ''}`} title="Perfil activo">{pd.profile.demo ? 'DEMO · ' : ''}{pd.profile.nombre.replace(' (demostración)', '')}</span>}
+          {cloud.enabled && (() => {
+            const est = !cloud.email ? { l: 'Entrar o crear cuenta', c: '' }
+              : cloud.phase === 'activa' ? (cloud.status === 'error' ? { l: 'Cuenta: error de sincronización', c: 'danger' } : { l: 'Cuenta: sincronizada', c: 'ok' })
+              : { l: 'Cuenta: falta un paso', c: 'warn' };
+            return (
+              <button type="button" className={`iconbtn acct ${est.c}`} id="btn-cuenta" onClick={() => go('cuenta')} aria-label={est.l} title={est.l}>
+                <Icon name="user" size={20} />{est.c && <span className="dot" aria-hidden="true" />}
+              </button>
+            );
+          })()}
           <button type="button" className="iconbtn" aria-label="Ajustes y datos" onClick={() => go('ajustes')}><Icon name="gear" size={20} /></button>
         </header>
         {!persisted && (
           <div className="notice warn" style={{ marginTop: 12 }}>Este navegador no permite guardar datos (modo privado o almacenamiento bloqueado). Lo que hagas se perderá al cerrar.</div>
+        )}
+        {effective !== 'cuenta' && ['mfa', 'recuperar', 'terminos', 'decidir'].includes(cloud.phase) && (
+          <div className="notice warn" style={{ marginTop: 12 }} role="status">
+            Tu cuenta necesita un paso más antes de continuar. <button type="button" className="btn sm" onClick={() => go('cuenta')}>Ir a mi cuenta</button>
+          </div>
         )}
         <main>{screen}</main>
       </div>
@@ -121,6 +141,7 @@ export function App() {
         </nav>
       )}
       </div>
+      </CloudCtx.Provider>
     </Ctx.Provider>
   );
 }

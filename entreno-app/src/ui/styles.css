@@ -102,6 +102,13 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); outline: 
 .progress { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .progress > i { display: block; height: 100%; background: var(--blue); border-radius: 999px; transition: width .3s; }
 
+.topbar .badge { min-width: 0; max-width: 34vw; overflow: hidden; text-overflow: ellipsis; display: block; }
+.topbar .brand { flex: none; }
+.iconbtn.acct { position: relative; }
+.iconbtn.acct .dot { position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); border: 2px solid var(--bg); }
+.iconbtn.acct.ok .dot { background: var(--ok); }
+.iconbtn.acct.warn .dot { background: var(--warn); }
+.iconbtn.acct.danger .dot { background: var(--danger); }
 .badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 10px; font-size: 0.78rem; font-weight: 600; border: 1px solid var(--line-strong); color: var(--muted); white-space: nowrap; }
 .badge.demo { border-color: var(--yellow); color: var(--yellow); }
 .badge.ok { border-color: var(--ok); color: var(--ok); }

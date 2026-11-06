@@ -6,10 +6,12 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
+const C = '33333333-3333-4333-8333-333333333333';
 let db: PGlite;
 
-async function as(user: string | null, sql: string, params: unknown[] = []) {
+async function as(user: string | null, sql: string, params: unknown[] = [], aal = 'aal1') {
   await db.exec('reset role');
+  await db.query(`select set_config('request.jwt.claims', $1, false)`, [user ? JSON.stringify({ sub: user, aal }) : '']);
   if (user) {
     await db.query(`select set_config('request.jwt.claim.sub', $1, false)`, [user]);
     await db.exec('set role authenticated');
@@ -38,12 +40,18 @@ beforeAll(async () => {
     create function auth.uid() returns uuid language sql stable as
       $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     grant usage on schema public, auth to anon, authenticated;
+    create function auth.jwt() returns jsonb language sql stable as
+      $$ select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb) $$;
+    create table auth.mfa_factors (id uuid primary key default gen_random_uuid(), user_id uuid not null, status text not null);
     grant execute on function auth.uid() to anon, authenticated;
-    insert into auth.users values ('${A}'), ('${B}');
+    grant execute on function auth.jwt() to anon, authenticated;
+    insert into auth.users values ('${A}'), ('${B}'), ('${C}');
   `);
-  await db.exec(readFileSync('supabase/migrations/0001_fitia_esquema.sql', 'utf8'));
-  // Idempotencia: ejecutar dos veces no debe fallar.
-  await db.exec(readFileSync('supabase/migrations/0001_fitia_esquema.sql', 'utf8'));
+  for (const f of ['0001_fitia_esquema.sql', '0002_fitia_mfa.sql']) {
+    // Idempotencia: ejecutar dos veces no debe fallar.
+    await db.exec(readFileSync(`supabase/migrations/${f}`, 'utf8'));
+    await db.exec(readFileSync(`supabase/migrations/${f}`, 'utf8'));
+  }
 });
 
 describe('RLS y permisos del esquema', () => {
@@ -105,13 +113,31 @@ describe('RLS y permisos del esquema', () => {
     await fails(newAtleta(A, 'Sexto'), /Límite de 5 perfiles/);
   });
 
+  it('con verificación en dos pasos activada, la sesión solo con contraseña no accede a los datos', async () => {
+    await as(C, `insert into public.consentimientos (tipo, version, aceptado) values ('datos_salud', '2026-11', true)`);
+    await as(C, `insert into public.atletas (nombre) values ('Carla')`);
+    await db.exec(`insert into auth.mfa_factors (user_id, status) values ('${C}', 'unverified')`);
+    expect((await as(C, 'select nombre from public.atletas')).rows).toHaveLength(1); // factor sin verificar: no cuenta
+    await db.exec(`update auth.mfa_factors set status = 'verified' where user_id = '${C}'`);
+    expect((await as(C, 'select nombre from public.atletas')).rows).toHaveLength(0);
+    expect((await as(C, 'select * from public.consentimientos')).rows).toHaveLength(0);
+    await fails(as(C, `insert into public.atletas (nombre) values ('x')`), /row-level security/);
+    const upd = await as(C, `update public.atletas set nombre = 'x'`);
+    expect(upd.affectedRows).toBe(0);
+    expect((await as(C, 'select nombre from public.atletas', [], 'aal2')).rows.map((x) => x.nombre)).toEqual(['Carla']);
+    await as(C, `update public.atletas set nombre = 'Carla 2'`, [], 'aal2');
+    expect((await as(C, 'select nombre from public.atletas', [], 'aal2')).rows[0].nombre).toBe('Carla 2');
+    // A y B no tienen factores: siguen funcionando con aal1
+    expect((await as(B, 'select nombre from public.atletas')).rows).toHaveLength(1);
+  });
+
   it('eliminar mi cuenta borra solo mis datos', async () => {
     await as(A, 'select public.eliminar_mi_cuenta()');
     await db.exec('reset role');
     const users = await db.query<{ id: string }>('select id from auth.users');
-    expect(users.rows.map((x) => x.id)).toEqual([B]);
+    expect(users.rows.map((x) => x.id).sort()).toEqual([B, C]);
     const quedan = await db.query<{ owner_id: string }>('select owner_id from public.atletas');
-    expect(quedan.rows.every((x) => x.owner_id === B)).toBe(true);
-    expect(quedan.rows).toHaveLength(1);
+    expect(quedan.rows.some((x) => x.owner_id === A)).toBe(false);
+    expect(quedan.rows).toHaveLength(2);
   });
 });
