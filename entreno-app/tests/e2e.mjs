@@ -222,6 +222,55 @@ await page.locator('.bottomnav').getByRole('button', { name: /Progreso/ }).click
 await page.getByRole('button', { name: 'Historial' }).click();
 check('los perfiles no mezclan registros', demoCount > 1 && (await page.locator('.list .item').count()) === 1, `demo ${demoCount}`);
 
+// Perfil de carrera (10 km) con marca: plan, registro de rodaje y progreso de carrera
+await page.getByRole('button', { name: 'Ajustes y datos' }).click();
+await page.getByRole('button', { name: 'Nuevo perfil' }).click();
+await page.fill('#eval-nombre', 'Corredora');
+await page.fill('#eval-edad', '30');
+await page.getByRole('button', { name: /Preparar una carrera/ }).click(); await next();
+await page.getByRole('button', { name: /^Intermedio/ }).click();
+await page.getByRole('button', { name: /^Activa/ }).click(); await next();
+await page.getByRole('button', { name: '4', exact: true }).click();
+await page.getByRole('button', { name: '60 min' }).click(); await next();
+await next();
+await page.getByRole('heading', { name: 'Tu carrera' }).waitFor();
+await page.getByRole('button', { name: '10 km', exact: true }).click();
+await page.getByRole('button', { name: /^Regular/ }).click();
+await page.getByRole('button', { name: '60–120' }).click();
+await page.selectOption('#eval-marca-km', '5');
+await page.fill('#eval-marca-tiempo', '25:00');
+await page.locator('#eval-marca-tiempo').blur();
+await shot('18-evaluacion-carrera'); await noOverflow('evaluación carrera');
+await next(); await next(); await page.getByRole('button', { name: 'Ver resumen' }).click();
+check('resumen muestra la marca', await page.getByText('25:00 en 5 km').isVisible());
+await page.check('#eval-consent');
+await page.getByRole('button', { name: 'Generar mi plan' }).click();
+await page.getByRole('heading', { name: 'Semana de entrenamiento' }).waitFor();
+const planTxt = await page.locator('main').innerText();
+check('plan de carrera con series, rodaje y tirada', /Series/.test(planTxt) && /Rodaje suave/.test(planTxt) && /Tirada larga/.test(planTxt));
+check('estimación de ritmo con Riegel', /Riegel/.test(planTxt) && /min\/km/.test(planTxt));
+await shot('19-plan-carrera'); await noOverflow('plan carrera');
+await page.locator('.week .item', { hasText: 'Series' }).click();
+check('detalle de series con ritmo estimado', await page.getByText(/Ritmo de referencia estimado/).isVisible());
+await shot('20-detalle-series');
+await page.locator('.bottomnav').getByRole('button', { name: /Entrenar/ }).click();
+const opt = await page.locator('#train-session option', { hasText: 'Rodaje suave' }).getAttribute('value');
+await page.selectOption('#train-session', opt);
+await page.getByRole('button', { name: 'Empezar sesión' }).click();
+await page.fill('#train-run-min', '45');
+await page.fill('#train-run-km', '8');
+check('ritmo medio del rodaje', await page.getByText(/Ritmo medio: 5:38 min\/km/).isVisible());
+await shot('21-registro-carrera');
+await page.getByRole('button', { name: 'Terminar', exact: true }).click();
+await page.getByRole('button', { name: 'Guardar sesión' }).click();
+check('rodaje completado', await page.locator('.badge.ok', { hasText: 'Completada' }).isVisible());
+await page.getByRole('button', { name: 'Ver progreso' }).click();
+await page.getByRole('button', { name: 'Carrera', exact: true }).click();
+check('progreso de carrera exige 2 sesiones comparables', await page.getByText(/hacen falta al menos 2 sesiones de este tipo/).isVisible());
+await shot('22-progreso-carrera'); await noOverflow('progreso carrera');
+await page.getByRole('button', { name: 'Ajustes y datos' }).click();
+await page.locator('.item', { hasText: 'Prueba' }).click();
+
 // Escritorio
 await page.setViewportSize({ width: 1280, height: 900 });
 await page.locator('.bottomnav').getByRole('button', { name: /Mi plan/ }).click();

@@ -121,7 +121,8 @@ export function exportCsv(pd: ProfileData): string {
   const sorted: SessionLog[] = [...pd.sesiones].sort((a, b) => a.fecha.localeCompare(b.fecha));
   for (const s of sorted) {
     if (!s.ejercicios.length) {
-      rows.push([pd.profile.nombre, s.fecha.slice(0, 10), s.titulo, s.estado, `Aeróbico ${s.aerobicoMin ?? ''} min`, '', '', '', '', '', String(s.rpeSesion ?? ''), '', '']);
+      const desc = s.carrera ? `Carrera ${s.carrera.minutos} min${s.carrera.distanciaKm ? ` ${String(s.carrera.distanciaKm).replace('.', ',')} km` : ''}` : `Aeróbico ${s.aerobicoMin ?? ''} min`;
+      rows.push([pd.profile.nombre, s.fecha.slice(0, 10), s.titulo, s.estado, desc, '', '', '', '', '', String(s.rpeSesion ?? ''), String(s.carrera?.molestia ?? ''), '']);
     }
     for (const e of s.ejercicios) {
       e.sets.forEach((x, i) => rows.push([

@@ -1,7 +1,33 @@
 // Modelo de datos de Menarguez Fit IA.
 // Todo lo que pertenece a una persona cuelga de ProfileData y se guarda separado por id.
 
-export type Goal = 'hipertrofia' | 'fuerza' | 'salud' | 'composicion' | 'resistencia';
+export type Goal = 'hipertrofia' | 'fuerza' | 'salud' | 'composicion' | 'resistencia' | 'carrera';
+export type RaceDistance = '400' | '800' | '1500' | '5k' | '10k' | '21k';
+export type RunType = 'correr_caminar' | 'rodaje' | 'series' | 'series_cortas' | 'tempo' | 'tirada' | 'cuestas' | 'ritmo_carrera';
+
+export interface RunningProfile {
+  distancia: RaceDistance;
+  experiencia: 'empiezo' | 'ocasional' | 'regular';
+  minutosSemana: number; // minutos de carrera semanales actuales
+  fechaPrueba?: string; // YYYY-MM-DD
+  marca?: { distanciaKm: number; tiempoSeg: number };
+}
+
+export interface RunPlan {
+  tipo: RunType;
+  minutos: number;
+  intensidad: string;
+  bloques: string[];
+  ritmo?: string;
+  nota?: string;
+}
+
+export interface RunLog {
+  tipo: RunType;
+  minutos: number;
+  distanciaKm?: number;
+  molestia: 0 | 1 | 2 | 3;
+}
 export type Experience = 'ninguna' | 'principiante' | 'intermedio' | 'avanzado';
 export type ActivityLevel = 'sedentaria' | 'ligera' | 'moderada' | 'alta';
 export type Place = 'casa' | 'gimnasio';
@@ -70,6 +96,7 @@ export interface Profile {
   indicacionesProfesionales: string;
   pesoKg?: number;
   alturaCm?: number;
+  carrera?: RunningProfile;
   consentimientoLocal?: string; // fecha en que aceptó guardar el perfil en este navegador
   creado: string;
   actualizado: string;
@@ -92,13 +119,14 @@ export interface PlannedExercise {
 export interface PlannedSession {
   id: string;
   dia: number; // 0 = lunes
-  tipo: 'fuerza' | 'aerobica';
+  tipo: 'fuerza' | 'aerobica' | 'carrera';
   titulo: string;
   objetivo: string;
   minutosEstimados: number;
   calentamiento: string[];
   ejercicios: PlannedExercise[];
   aerobico?: { actividad: Aerobic; minutos: number; intensidad: string };
+  carrera?: RunPlan;
   vueltaCalma: string[];
   avisos: string[];
 }
@@ -143,6 +171,7 @@ export interface SessionLog {
   recuperacion: Recovery;
   ejercicios: LoggedExercise[];
   aerobicoMin?: number;
+  carrera?: RunLog;
   rpeSesion?: number;
   nota: string;
 }
@@ -156,6 +185,7 @@ export interface ActiveSession {
   actual: number;
   ejercicios: LoggedExercise[];
   aerobicoMin?: number;
+  carrera?: RunLog;
   timer: { finEn?: number; pausadoRestante?: number; total: number } | null;
 }
 

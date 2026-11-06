@@ -12,6 +12,7 @@ export const SOURCES: { t: string; d: string; url: string }[] = [
   { t: 'ACSM (2009). Progression models in resistance training for healthy adults. Med Sci Sports Exerc', d: 'Base de los rangos de repeticiones, series, descansos y progresión por nivel.', url: 'https://pubmed.ncbi.nlm.nih.gov/19204579/' },
   { t: 'Helms ER et al. (2016). Application of the repetitions in reserve-based RPE scale for resistance training. Strength Cond J', d: 'Escala de repeticiones en reserva usada para expresar la intensidad.', url: 'https://openrepository.aut.ac.nz/handle/10292/10669' },
   { t: 'Jäger R et al. (2017). ISSN Position Stand: protein and exercise. J Int Soc Sports Nutr', d: 'Referencia de 1,4–2,0 g/kg/día de proteína para personas que entrenan.', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC5477153/' },
+  { t: 'Riegel PS (1981). Athletic records and human endurance. American Scientist 69(3)', d: 'Fórmula usada para estimar el tiempo de una distancia a partir de una marca reciente (solo como orientación).', url: 'https://en.wikipedia.org/wiki/Peter_Riegel' },
   { t: 'Mifflin MD, St Jeor ST et al. (1990). A new predictive equation for resting energy expenditure in healthy individuals. Am J Clin Nutr', d: 'Ecuación usada para la estimación energética orientativa.', url: 'https://pubmed.ncbi.nlm.nih.gov/2305711/' },
 ];
 
@@ -135,6 +136,7 @@ export function Settings() {
         <ul className="plain small muted">
           <li>Orientación general sobre ejercicio. No diagnostica ni sustituye a médicos, fisioterapeutas o dietistas-nutricionistas.</li>
           <li>Planificación por reglas, sin IA generativa. No requiere conexión ni claves.</li>
+          <li>Carrera: de 400 m a media maratón. La maratón no se incluye en esta versión.</li>
           <li>Pendiente: demostraciones visuales de los ejercicios, cuenta de usuario y sincronización, importación de relojes deportivos, informes HTML corporativos.</li>
           <li>Solo para mayores de 18 años.</li>
         </ul>

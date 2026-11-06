@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { EXERCISE_BY_ID } from '../data/exercises';
 import { exerciseHistory, weekStart, weeklyReview, type Suggestion } from '../domain/progression';
-import type { Measure } from '../domain/types';
+import type { Measure, RunType } from '../domain/types';
+import { fmtPace, RUN_TYPE_LABEL } from '../domain/running';
 import { LineChart, Notice, Seg, Stat, useApp, PageTop } from '../ui/kit';
 
 const STATUS_BADGE = { completada: 'ok', parcial: 'warn', cancelada: 'danger' } as const;
 const STATUS_LABEL = { completada: 'Completada', parcial: 'Parcial', cancelada: 'Cancelada' } as const;
-type Tab = 'semana' | 'calendario' | 'ejercicio' | 'medidas' | 'historial';
+type Tab = 'semana' | 'calendario' | 'ejercicio' | 'carrera' | 'medidas' | 'historial';
 
 export function ProgressScreen() {
   const { pd } = useApp();
@@ -19,11 +20,14 @@ export function ProgressScreen() {
         {pd.profile.demo && <Notice kind="yellow">Perfil de demostración: los datos mostrados son de ejemplo.</Notice>}
       </div>
       <Seg label="Sección" value={tab} onChange={setTab} options={[
-        { v: 'semana', l: 'Semana' }, { v: 'calendario', l: 'Calendario' }, { v: 'ejercicio', l: 'Ejercicios' }, { v: 'medidas', l: 'Medidas' }, { v: 'historial', l: 'Historial' },
+        { v: 'semana', l: 'Semana' }, { v: 'calendario', l: 'Calendario' }, { v: 'ejercicio', l: 'Ejercicios' },
+        ...(pd.profile.objetivo === 'carrera' || pd.sesiones.some((x) => x.carrera) ? [{ v: 'carrera' as Tab, l: 'Carrera' }] : []),
+        { v: 'medidas', l: 'Medidas' }, { v: 'historial', l: 'Historial' },
       ]} />
       {tab === 'semana' && <WeekTab />}
       {tab === 'calendario' && <CalendarTab />}
       {tab === 'ejercicio' && <ExerciseTab />}
+      {tab === 'carrera' && <RunTab />}
       {tab === 'medidas' && <MeasuresTab />}
       {tab === 'historial' && <HistoryTab />}
     </div>
@@ -250,6 +254,53 @@ function HistoryTab() {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function RunTab() {
+  const { pd } = useApp();
+  const runs = pd!.sesiones.filter((s) => s.carrera && s.estado !== 'cancelada').sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const tipos = [...new Set(runs.map((r) => r.carrera!.tipo))];
+  const [tipo, setTipo] = useState<RunType | undefined>(tipos.includes('rodaje') ? 'rodaje' : tipos[0]);
+  if (!runs.length) return <Notice kind="warn">Aún no hay sesiones de carrera registradas.</Notice>;
+  const ini = weekStart(new Date());
+  const weeks = Array.from({ length: 4 }, (_, k) => {
+    const a = new Date(ini); a.setDate(a.getDate() - 7 * (3 - k));
+    const b = new Date(a); b.setDate(b.getDate() + 7);
+    const ss = runs.filter((s) => { const f = new Date(s.fecha); return f >= a && f < b; });
+    return { a, min: ss.reduce((t, s) => t + s.carrera!.minutos, 0), n: ss.length };
+  });
+  const sel = runs.filter((r) => r.carrera!.tipo === tipo);
+  const fmt = (iso: string) => new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+  const pts = sel.filter((r) => r.carrera!.distanciaKm && r.carrera!.minutos).map((r) => ({ x: fmt(r.fecha), y: Math.round((r.carrera!.minutos / r.carrera!.distanciaKm!) * 100) / 100 }));
+  return (
+    <div className="stack">
+      <div className="card">
+        <h3>Minutos de carrera por semana</h3>
+        <div className="table-wrap"><table>
+          <thead><tr><th>Semana</th><th>Sesiones</th><th>Minutos</th></tr></thead>
+          <tbody>{weeks.map((w) => <tr key={w.a.toISOString()}><td>{w.a.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</td><td className="num">{w.n}</td><td className="num">{w.min}</td></tr>)}</tbody>
+        </table></div>
+        <p className="small faint">Aumenta el volumen de forma gradual; si aparecen molestias, mantén o reduce.</p>
+      </div>
+      <div className="field"><span>Tipo de sesión</span>
+        <Seg label="Tipo de sesión" value={tipo} onChange={setTipo} options={tipos.map((t) => ({ v: t, l: RUN_TYPE_LABEL[t] }))} />
+      </div>
+      <Notice>Solo se comparan sesiones del mismo tipo. El ritmo medio de unas series incluye recuperaciones y no es comparable con un rodaje.</Notice>
+      {pts.length >= 2
+        ? <div className="card"><h3>Ritmo medio ({RUN_TYPE_LABEL[tipo!].toLowerCase()})</h3><LineChart points={pts} unit="min/km" label="Ritmo medio por sesión" /><p className="small muted">Un número menor es más rápido. Solo indica mejora si el esfuerzo, el recorrido y el clima fueron parecidos.</p></div>
+        : <Notice kind="warn">Datos insuficientes para ver una evolución de ritmo: hacen falta al menos 2 sesiones de este tipo con distancia registrada.</Notice>}
+      <div className="card table-wrap">
+        <table>
+          <thead><tr><th>Fecha</th><th>Min</th><th>Km</th><th>Ritmo</th><th>Esf.</th><th>Molestia</th></tr></thead>
+          <tbody>{[...sel].reverse().map((r) => (
+            <tr key={r.id}><td>{fmt(r.fecha)}</td><td className="num">{r.carrera!.minutos}</td><td className="num">{r.carrera!.distanciaKm?.toString().replace('.', ',') ?? '—'}</td>
+              <td className="num">{r.carrera!.distanciaKm ? fmtPace((r.carrera!.minutos * 60) / r.carrera!.distanciaKm).replace(' min/km', '') : '—'}</td>
+              <td>{r.rpeSesion ?? '—'}</td><td>{['no', 'leve', 'moderada', 'fuerte'][r.carrera!.molestia]}</td></tr>
+          ))}</tbody>
+        </table>
+      </div>
     </div>
   );
 }

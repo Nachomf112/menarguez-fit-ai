@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { EXERCISE_BY_ID } from '../data/exercises';
+import { RUN_TYPE_LABEL } from '../domain/running';
 import { AEROBIC_LABEL, DAY_NAMES, generatePlan, progressionCriterion, rirText, substitutes } from '../domain/planner';
 import { suggestFor } from '../domain/progression';
 import { Notice, useApp, PageTop } from '../ui/kit';
@@ -33,10 +34,10 @@ export function PlanScreen() {
                   <div>
                     <strong>{s.titulo}</strong>
                     <div className="small muted">
-                      {s.tipo === 'fuerza' ? `${s.ejercicios.length} ejercicios` : AEROBIC_LABEL[s.aerobico!.actividad]} · ≈{s.minutosEstimados} min
+                      {s.tipo === 'fuerza' ? `${s.ejercicios.length} ejercicios` : s.tipo === 'carrera' ? 'Carrera' : AEROBIC_LABEL[s.aerobico!.actividad]} · ≈{s.minutosEstimados} min
                     </div>
                   </div>
-                  {done.has(s.id) ? <span className="badge ok">Hecha</span> : <span className="badge blue">{s.tipo === 'fuerza' ? 'Fuerza' : 'Aeróbico'}</span>}
+                  {done.has(s.id) ? <span className="badge ok">Hecha</span> : <span className={`badge ${s.tipo === 'carrera' ? 'demo' : 'blue'}`}>{s.tipo === 'fuerza' ? 'Fuerza' : s.tipo === 'carrera' ? 'Carrera' : 'Aeróbico'}</span>}
                 </button>
               ) : <div className="rest">Descanso</div>}
             </div>
@@ -99,10 +100,20 @@ export function SessionDetail() {
         <p className="muted">{s.objetivo}</p>
       </div>
       {s.avisos.map((a, i) => <Notice key={i} kind="warn">{a}</Notice>)}
-      <div className="card">
+      {s.calentamiento.length > 0 && <div className="card">
         <h3>Calentamiento</h3>
         <ul className="plain small">{s.calentamiento.map((c, i) => <li key={i}>{c}</li>)}</ul>
-      </div>
+      </div>}
+      {s.carrera && (
+        <div className="card accent">
+          <span className="eyebrow">{RUN_TYPE_LABEL[s.carrera.tipo]} · ≈{Math.round(s.carrera.minutos)} min</span>
+          <ol className="steps">{s.carrera.bloques.map((b, i) => <li key={i}>{b}</li>)}</ol>
+          <p className="small"><strong>Intensidad:</strong> {s.carrera.intensidad}</p>
+          {s.carrera.ritmo && <p className="small"><strong>Ritmo:</strong> {s.carrera.ritmo}</p>}
+          {s.carrera.nota && <p className="small muted">{s.carrera.nota}</p>}
+          <p className="small faint">Si aparece dolor que te hace cambiar la zancada, para y camina. Ante dolor en el pecho, mareo o falta de aire intensa, detente y busca atención sanitaria.</p>
+        </div>
+      )}
 
       {s.aerobico && (
         <div className="card">
@@ -138,10 +149,10 @@ export function SessionDetail() {
         );
       })}
 
-      <div className="card">
+      {s.vueltaCalma.length > 0 && <div className="card">
         <h3>Vuelta a la calma</h3>
         <ul className="plain small">{s.vueltaCalma.map((c, i) => <li key={i}>{c}</li>)}</ul>
-      </div>
+      </div>}
       <button type="button" className="btn primary block" onClick={() => go('entrenar', { sessionId: s.id })}>{pd.activa ? 'Ir a la sesión en curso' : 'Empezar esta sesión'}</button>
     </div>
   );

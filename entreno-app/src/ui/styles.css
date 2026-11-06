@@ -91,7 +91,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 label.field, .field { display: grid; gap: 6px; }
 .field > span:first-child { font-weight: 600; }
-input[type="text"], input[type="number"], input[type="search"], input:not([type]), select, textarea {
+input[type="text"], input[type="number"], input[type="search"], input[type="date"], input:not([type]), select, textarea {
   width: 100%; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 11px 12px; min-height: 44px; }
 textarea { min-height: 90px; resize: vertical; }
 input:focus, select:focus, textarea:focus { border-color: var(--blue); outline: none; box-shadow: 0 0 0 3px var(--blue-soft); }

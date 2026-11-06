@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { EXERCISES, EXERCISE_BY_ID, EQUIPMENT_LABEL, LIMITATION_LABEL } from '../data/exercises';
 import { emptyProfileData } from '../data/demo';
 import { AEROBIC_LABEL, canPlan, generatePlan } from '../domain/planner';
-import type { Aerobic, Equipment, Limitation, Profile } from '../domain/types';
+import { fmtTime, parseTime, RACE_LABEL } from '../domain/running';
+import type { Aerobic, Equipment, Limitation, Profile, RaceDistance, RunningProfile } from '../domain/types';
 import { Chip, Notice, Option, Progress, Seg, useApp } from '../ui/kit';
 
 type R = Profile;
@@ -17,6 +18,7 @@ export const GOAL_OPTS: { v: Profile['objetivo']; t: string; d: string }[] = [
   { v: 'salud', t: 'Salud y forma general', d: 'Sentirte con más energía y capacidad en el día a día.' },
   { v: 'composicion', t: 'Mejorar composición corporal', d: 'Reducir grasa conservando o ganando músculo.' },
   { v: 'resistencia', t: 'Resistencia muscular', d: 'Aguantar más repeticiones y trabajo continuado.' },
+  { v: 'carrera', t: 'Preparar una carrera', d: '400 m, 800 m, 1500 m, 5 km, 10 km o media maratón, con fuerza de apoyo.' },
 ];
 export const EXP_OPTS: { v: Profile['experiencia']; t: string; d: string }[] = [
   { v: 'ninguna', t: 'Sin experiencia', d: 'Nunca he entrenado fuerza o hace más de un año.' },
@@ -59,6 +61,30 @@ function AvoidPicker({ r, u }: { r: R; u: (p: Partial<R>) => void }) {
 const showBody = (r: R) => r.objetivo === 'composicion' || r.objetivo === 'hipertrofia';
 const validBody = (r: R) => (r.pesoKg != null && !(r.pesoKg >= 30 && r.pesoKg <= 300)) ? 'Peso entre 30 y 300 kg.' : (r.alturaCm != null && !(r.alturaCm >= 120 && r.alturaCm <= 230)) ? 'Altura entre 120 y 230 cm.' : null;
 
+
+function MarcaInput({ value, onChange }: { value?: RunningProfile['marca']; onChange: (m: RunningProfile['marca']) => void }) {
+  const [km, setKm] = useState<number>(value?.distanciaKm ?? 5);
+  const [t, setT] = useState<string>(value ? fmtTime(value.tiempoSeg) : '');
+  const [err, setErr] = useState<string | null>(null);
+  const commit = (k: number, txt: string) => {
+    if (!txt.trim()) { setErr(null); onChange(undefined); return; }
+    const sec = parseTime(txt);
+    if (!sec) { setErr('Escribe el tiempo como mm:ss o h:mm:ss.'); return; }
+    setErr(null); onChange({ distanciaKm: k, tiempoSeg: sec });
+  };
+  return (
+    <div className="field"><span>Marca reciente (opcional, últimos 3 meses)</span>
+      <div className="row">
+        <select id="eval-marca-km" aria-label="Distancia de la marca" value={km} onChange={(e) => { const k = Number(e.target.value); setKm(k); commit(k, t); }} style={{ flex: '1 1 120px' }}>
+          {[[1, '1 km'], [1.5, '1500 m'], [3, '3 km'], [5, '5 km'], [10, '10 km'], [21.0975, 'Media maratón']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <input id="eval-marca-tiempo" type="text" inputMode="numeric" placeholder="mm:ss" aria-label="Tiempo de la marca" value={t} onChange={(e) => setT(e.target.value)} onBlur={() => commit(km, t)} style={{ flex: '1 1 120px' }} />
+      </div>
+      {err ? <span className="error">{err}</span> : <span className="small faint">Con una marca real verás ritmos orientativos. Sin ella, la intensidad se guía por sensaciones.</span>}
+    </div>
+  );
+}
+
 const STEPS: Step[] = [
   { id: 'identidad', fase: 1, titulo: 'Empecemos por ti',
     valid: (r) => !r.nombre.trim() ? 'Escribe un nombre o alias.' : !Number.isFinite(r.edad) ? 'Indica tu edad.' : r.edad < 18 ? 'Menarguez Fit IA es solo para mayores de 18 años.' : r.edad > 100 ? 'Revisa la edad.' : null,
@@ -69,7 +95,7 @@ const STEPS: Step[] = [
           <label className="field" style={{ flex: '1 1 100px' }}><span>Edad</span><input id="eval-edad" type="number" inputMode="numeric" min={18} max={100} value={Number.isFinite(r.edad) ? r.edad : ''} onChange={(e) => u({ edad: e.target.value === '' ? NaN : Number(e.target.value) })} /></label>
         </div>
         <div className="field"><span>¿Qué quieres conseguir?</span>
-          <div className="choice">{GOAL_OPTS.map((o) => <Option key={o.v} on={r.objetivo === o.v} onClick={() => u({ objetivo: o.v })} title={o.t} desc={o.d} />)}</div>
+          <div className="choice">{GOAL_OPTS.map((o) => <Option key={o.v} on={r.objetivo === o.v} onClick={() => u(o.v === 'carrera' ? { objetivo: o.v, carrera: r.carrera ?? { distancia: '5k', experiencia: 'ocasional', minutosSemana: 45 } } : { objetivo: o.v })} title={o.t} desc={o.d} />)}</div>
         </div>
       </div>) },
   { id: 'perfil', fase: 1, titulo: 'Tu experiencia y tu actividad',
@@ -122,6 +148,35 @@ const STEPS: Step[] = [
           </Notice>
         )}
       </div>) },
+  { id: 'carrera', fase: 2, titulo: 'Tu carrera', show: (r) => r.objetivo === 'carrera',
+    valid: (r) => !r.carrera ? 'Elige la distancia.' : r.carrera.fechaPrueba && r.carrera.fechaPrueba < new Date().toISOString().slice(0, 10) ? 'La fecha de la prueba ya ha pasado.' : null,
+    body: (r, u) => {
+      const c = r.carrera ?? { distancia: '5k' as RaceDistance, experiencia: 'ocasional' as const, minutosSemana: 45 };
+      const uc = (p: Partial<RunningProfile>) => u({ carrera: { ...c, ...p } });
+      return (
+        <div className="stack">
+          <div className="field"><span>Distancia que quieres preparar</span>
+            <div className="chips">{(Object.keys(RACE_LABEL) as RaceDistance[]).map((d) => <Chip key={d} on={c.distancia === d} onClick={() => uc({ distancia: d })}>{RACE_LABEL[d]}</Chip>)}</div>
+            <span className="small faint">La maratón no se incluye en esta versión: su preparación conviene supervisarla de forma individual.</span>
+          </div>
+          <div className="field"><span>¿Cómo es tu experiencia corriendo?</span>
+            <div className="choice">
+              <Option on={c.experiencia === 'empiezo'} onClick={() => uc({ experiencia: 'empiezo' })} title="Empiezo" desc="No corro o no aguanto 20–30 min seguidos." />
+              <Option on={c.experiencia === 'ocasional'} onClick={() => uc({ experiencia: 'ocasional' })} title="Ocasional" desc="Corro 30 min seguidos, 1–2 veces por semana." />
+              <Option on={c.experiencia === 'regular'} onClick={() => uc({ experiencia: 'regular' })} title="Regular" desc="Corro 3 o más días por semana desde hace meses." />
+            </div>
+          </div>
+          <div className="field"><span>¿Cuántos minutos corres ahora a la semana?</span>
+            <div className="chips">{[[0, 'Nada'], [20, 'Menos de 30'], [45, '30–60'], [90, '60–120'], [150, 'Más de 120']].map(([v, l]) => <Chip key={v} on={c.minutosSemana === v} onClick={() => uc({ minutosSemana: v as number })}>{l}</Chip>)}</div>
+            <span className="small faint">Sirve para que la tirada larga y los rodajes crezcan de forma gradual.</span>
+          </div>
+          <label className="field"><span>Fecha de la prueba (opcional)</span>
+            <input id="eval-fecha-prueba" type="date" min={new Date().toISOString().slice(0, 10)} value={c.fechaPrueba ?? ''} onChange={(e) => uc({ fechaPrueba: e.target.value || undefined })} />
+          </label>
+          <MarcaInput value={c.marca} onChange={(m) => uc({ marca: m })} />
+        </div>
+      );
+    } },
   { id: 'material', fase: 2, titulo: 'Dónde y con qué entrenas',
     body: (r, u) => (
       <div className="stack">
@@ -269,6 +324,10 @@ export function Summary() {
         {r.limitaciones.length > 0 && <p>Dolor persistente o que aumenta: {yes(r.dolorQueAumenta)}</p>}
         <p>Síntomas con el esfuerzo: {yes(r.screening.sintomasEsfuerzo)} · Restricción profesional: {yes(r.screening.restriccionProfesional)} · Embarazo o posparto: {yes(r.screening.embarazoPosparto)}</p>
       </Section>
+      {r.objetivo === 'carrera' && r.carrera && <Section id="carrera" title="Carrera">
+        <p>{RACE_LABEL[r.carrera.distancia]} · experiencia {r.carrera.experiencia} · {r.carrera.minutosSemana} min/semana ahora</p>
+        <p>Prueba: {r.carrera.fechaPrueba ? new Date(r.carrera.fechaPrueba + 'T12:00:00').toLocaleDateString('es-ES') : 'sin fecha'} · Marca: {r.carrera.marca ? `${fmtTime(r.carrera.marca.tiempoSeg)} en ${r.carrera.marca.distanciaKm.toString().replace('.', ',')} km` : 'sin indicar'}</p>
+      </Section>}
       <Section id="material" title="Lugar y material"><p>{r.lugar === 'casa' ? 'Casa o exterior' : 'Gimnasio'} · {r.material.map((m) => EQUIPMENT_LABEL[m]).join(', ')}</p></Section>
       <Section id="material" title="Preferencias">
         <p>Aeróbico: {r.aerobicoPreferido.length ? r.aerobicoPreferido.map((a) => AEROBIC_LABEL[a]).join(', ') : 'sin preferencia'}</p>

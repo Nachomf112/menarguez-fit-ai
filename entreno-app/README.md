@@ -1,4 +1,4 @@
-# Menarguez Fit IA — módulo de entrenamiento (v0.2)
+# Menarguez Fit IA — módulo de entrenamiento (v0.3)
 
 Aplicación web para crear programas personalizados de musculación y registrar la evolución.
 Menarguez-IA-Solutions | Ignacio Menárguez Fernández
@@ -12,6 +12,7 @@ Menarguez-IA-Solutions | Ignacio Menárguez Fernández
 - Modo entrenamiento: registro de kg y repeticiones por serie, temporizador de descanso (pausa y reinicio), último registro, sustitución por alternativas compatibles, esfuerzo, molestias y técnica. Sobrevive a recargas.
 - Sesiones completadas, parciales y canceladas. Abrir una sesión no cuenta como realizada.
 - Progreso: revisión semanal con sugerencias justificadas (aceptar o mantener), calendario, cumplimiento, evolución por ejercicio, medidas opcionales e historial.
+- Carrera: preparación de 400 m, 800 m, 1500 m, 5 km, 10 km y media maratón. Sesiones por esfuerzo percibido (rodaje, series, ritmo continuo, tirada larga, cuestas, ritmo de carrera y correr-caminar), fase según la fecha de la prueba, ritmos orientativos solo con marca real (Riegel) y comparación solo entre sesiones del mismo tipo.
 - Nutrición opcional: menú semanal con cantidades orientativas (en crudo, cocido o tal cual), sustituciones y lista de compra. Sin kcal por plato. Ante riesgo de TCA, condición clínica o embarazo, solo hábitos generales.
 - Datos solo en el navegador: varios perfiles separados, perfil de demostración identificado, copia JSON validada, CSV de registros y borrado con confirmación.
 - Uso exclusivo para mayores de 18 años.

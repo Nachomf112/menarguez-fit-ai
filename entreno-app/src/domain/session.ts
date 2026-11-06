@@ -19,7 +19,8 @@ export function startSession(ps: PlannedSession, recuperacion: Recovery, ajustes
     };
   });
   return { id: uid('ses'), planSessionId: ps.id, titulo: ps.titulo, inicio: now.toISOString(), recuperacion, actual: 0, ejercicios,
-    aerobicoMin: ps.tipo === 'aerobica' ? 0 : undefined, timer: null };
+    aerobicoMin: ps.tipo === 'aerobica' ? 0 : undefined,
+    carrera: ps.tipo === 'carrera' && ps.carrera ? { tipo: ps.carrera.tipo, minutos: 0, molestia: 0 } : undefined, timer: null };
 }
 
 /** Sustituye el ejercicio `idx`. Si ya tiene series hechas, se conservan con el ejercicio original
@@ -48,6 +49,7 @@ export function substitute(a: ActiveSession, idx: number, newId: string): Active
 export function statusOf(a: ActiveSession): SessionStatus | 'vacia' {
   const total = a.ejercicios.reduce((s, e) => s + e.sets.length, 0);
   const hechas = a.ejercicios.reduce((s, e) => s + e.sets.filter((x) => x.hecho).length, 0);
+  if (a.carrera && a.ejercicios.length === 0) return a.carrera.minutos > 0 ? 'completada' : 'vacia';
   if (a.aerobicoMin != null && a.ejercicios.length === 0) return a.aerobicoMin > 0 ? 'completada' : 'vacia';
   if (hechas === 0) return 'vacia';
   return hechas >= total ? 'completada' : 'parcial';
@@ -57,11 +59,11 @@ export function finishSession(a: ActiveSession, opts: { cancelar?: boolean; rpeS
   let estado: SessionStatus;
   const st = statusOf(a);
   if (opts.cancelar || st === 'vacia') estado = 'cancelada';
-  else if (a.aerobicoMin != null && a.ejercicios.length === 0 && opts.aerobicoObjetivo && a.aerobicoMin < opts.aerobicoObjetivo * 0.8) estado = 'parcial';
+  else if (a.ejercicios.length === 0 && opts.aerobicoObjetivo && ((a.carrera?.minutos ?? a.aerobicoMin ?? 0) < opts.aerobicoObjetivo * 0.8)) estado = 'parcial';
   else estado = st;
   return {
     id: a.id, planSessionId: a.planSessionId, titulo: a.titulo, fecha: a.inicio, inicio: a.inicio, fin: now.toISOString(),
-    estado, recuperacion: a.recuperacion, ejercicios: a.ejercicios, aerobicoMin: a.aerobicoMin, rpeSesion: opts.rpeSesion, nota: opts.nota ?? '',
+    estado, recuperacion: a.recuperacion, ejercicios: a.ejercicios, aerobicoMin: a.aerobicoMin, carrera: a.carrera, rpeSesion: opts.rpeSesion, nota: opts.nota ?? '',
   };
 }
 

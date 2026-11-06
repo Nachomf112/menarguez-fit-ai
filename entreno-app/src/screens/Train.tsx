@@ -6,6 +6,7 @@ import { finishSession, startSession, statusOf, substitute, timerPause, timerRem
 import type { ActiveSession, LoggedExercise, Recovery, SessionLog } from '../domain/types';
 import { Notice, Progress, Seg, useApp } from '../ui/kit';
 import { nextSession } from './Home';
+import { fmtPace, RUN_TYPE_LABEL } from '../domain/running';
 
 const STATUS_LABEL = { completada: 'Completada', parcial: 'Parcial', cancelada: 'Cancelada' } as const;
 const STATUS_BADGE = { completada: 'ok', parcial: 'warn', cancelada: 'danger' } as const;
@@ -46,7 +47,7 @@ function StartView() {
       </div>
       <div className="card">
         <h3>{ps.titulo}</h3>
-        <p className="small muted">{ps.tipo === 'fuerza' ? ps.ejercicios.map((e) => EXERCISE_BY_ID[e.exerciseId].nombre).join(' · ') : `${AEROBIC_LABEL[ps.aerobico!.actividad]} ${ps.aerobico!.minutos} min`}</p>
+        <p className="small muted">{ps.tipo === 'fuerza' ? ps.ejercicios.map((e) => EXERCISE_BY_ID[e.exerciseId].nombre).join(' · ') : ps.carrera ? `${RUN_TYPE_LABEL[ps.carrera.tipo]} · ${Math.round(ps.carrera.minutos)} min` : `${AEROBIC_LABEL[ps.aerobico!.actividad]} ${ps.aerobico!.minutos} min`}</p>
         <p className="small faint">≈{ps.minutosEstimados} min</p>
       </div>
       <div className="field"><span>¿Cómo te encuentras hoy?</span>
@@ -91,7 +92,7 @@ function ActiveView() {
   const isAerobic = a.ejercicios.length === 0;
 
   const save = (cancelar: boolean) => {
-    const log: SessionLog = finishSession(a, { cancelar, rpeSesion, nota, aerobicoObjetivo: ps?.aerobico?.minutos });
+    const log: SessionLog = finishSession(a, { cancelar, rpeSesion, nota, aerobicoObjetivo: ps?.aerobico?.minutos ?? ps?.carrera?.minutos });
     updatePd((d) => ({ ...d, activa: null, sesiones: [...d.sesiones, log] }));
     go('entrenar', { summaryId: log.id });
   };
@@ -132,6 +133,39 @@ function ActiveView() {
       )}
     </div>
   );
+
+  if (isAerobic && a.carrera) {
+    const plan = ps?.carrera;
+    const run = a.carrera;
+    const updRun = (p: Partial<typeof run>) => upd((x) => ({ ...x, carrera: { ...x.carrera!, ...p } }));
+    const pace = run.distanciaKm && run.minutos ? (run.minutos * 60) / run.distanciaKm : null;
+    return (
+      <div className="screen">
+        {header}
+        {plan && (
+          <div className="card accent">
+            <span className="eyebrow">{RUN_TYPE_LABEL[plan.tipo]} · objetivo ≈{Math.round(plan.minutos)} min</span>
+            <ol className="steps small">{plan.bloques.map((x, k) => <li key={k}>{x}</li>)}</ol>
+            <p className="small">{plan.intensidad}</p>
+            {plan.ritmo && <p className="small muted">{plan.ritmo}</p>}
+          </div>
+        )}
+        <div className="row">
+          <label className="field" style={{ flex: '1 1 140px' }}><span>Minutos totales</span>
+            <input id="train-run-min" type="number" inputMode="numeric" min={0} max={400} value={run.minutos || ''} onChange={(e) => updRun({ minutos: Math.max(0, Math.min(400, Number(e.target.value) || 0)) })} />
+          </label>
+          <label className="field" style={{ flex: '1 1 140px' }}><span>Distancia (km, opcional)</span>
+            <input id="train-run-km" type="text" inputMode="decimal" value={run.distanciaKm ?? ''} onChange={(e) => { const v = Number(e.target.value.replace(',', '.')); updRun({ distanciaKm: e.target.value.trim() && Number.isFinite(v) && v > 0 && v < 100 ? v : undefined }); }} />
+          </label>
+        </div>
+        {pace && run.tipo === 'rodaje' && <p className="small muted">Ritmo medio: {fmtPace(pace)}. Solo es comparable con otros rodajes suaves en condiciones parecidas.</p>}
+        {pace && run.tipo !== 'rodaje' && <p className="small muted">Ritmo medio de toda la sesión: {fmtPace(pace)}. Incluye calentamiento y recuperaciones, así que no refleja el ritmo de las repeticiones.</p>}
+        <div className="field"><span>Molestias</span><Seg label="Molestias" value={run.molestia} onChange={(v) => updRun({ molestia: v as 0 | 1 | 2 | 3 })} options={MOLESTIA.map((m) => ({ v: m.v, l: m.l }))} /></div>
+        {run.molestia >= 2 && <Notice kind="danger">No sigas corriendo con dolor que cambia tu zancada. Si persiste o aumenta en los próximos días, consulta a un profesional sanitario y no aumentes el volumen.</Notice>}
+        {finishPanel ?? <div className="row"><button type="button" className="btn primary" onClick={() => setFinish('guardar')}>Terminar</button><button type="button" className="btn danger" onClick={() => setFinish('cancelar')}>Cancelar sesión</button></div>}
+      </div>
+    );
+  }
 
   if (isAerobic) {
     const obj = ps?.aerobico;
@@ -291,6 +325,8 @@ function SessionSummary({ log }: { log: SessionLog }) {
         {log.ejercicios.length > 0 && <div className="stat"><span className="v">{sets.length}</span><span className="l">series hechas</span></div>}
         {volumen > 0 && <div className="stat"><span className="v">{Math.round(volumen)}</span><span className="l">kg × reps</span></div>}
         {log.aerobicoMin != null && <div className="stat"><span className="v">{log.aerobicoMin}</span><span className="l">min aeróbicos</span></div>}
+        {log.carrera && <div className="stat"><span className="v">{log.carrera.minutos}</span><span className="l">min de {RUN_TYPE_LABEL[log.carrera.tipo].toLowerCase()}</span></div>}
+        {log.carrera?.distanciaKm && <div className="stat"><span className="v">{log.carrera.distanciaKm.toString().replace('.', ',')}</span><span className="l">km</span></div>}
         {log.rpeSesion != null && <div className="stat"><span className="v">{log.rpeSesion}</span><span className="l">esfuerzo</span></div>}
       </div>
       {log.estado === 'cancelada' && <Notice kind="warn">Esta sesión no cuenta como realizada.</Notice>}

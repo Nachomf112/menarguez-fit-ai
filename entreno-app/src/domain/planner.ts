@@ -3,6 +3,7 @@
 // base de conocimiento del proyecto (principiantes 1–3 series, 6–15 reps, sin llegar al fallo).
 
 import { EXERCISES, EXERCISE_BY_ID, LIMITATION_LABEL } from '../data/exercises';
+import { runDaysFor, runningNotes, runSessions } from './running';
 import type {
   Aerobic, Exercise, Goal, Pattern, PlannedExercise, PlannedSession, Prescription, Profile, WeekPlan,
 } from './types';
@@ -59,6 +60,7 @@ const GOAL_TEXT: Record<Goal, string> = {
   salud: 'Fuerza útil para la salud y la vida diaria',
   composicion: 'Mantener y ganar músculo mientras mejoras tu composición corporal',
   resistencia: 'Resistencia muscular y capacidad de trabajo',
+  carrera: 'Fuerza de apoyo para correr: piernas, tronco y prevención de molestias',
 };
 
 export const AEROBIC_LABEL: Record<Aerobic, string> = {
@@ -81,6 +83,7 @@ export function canPlan(p: Profile): { ok: true } | { ok: false; motivo: string;
   if (!(p.dias >= 1 && p.dias <= 6)) faltan.push('días disponibles (1 a 6)');
   if (!(p.minutos >= 20 && p.minutos <= 120)) faltan.push('minutos por sesión (20 a 120)');
   if (!p.material?.length) faltan.push('material disponible');
+  if (p.objetivo === 'carrera' && !p.carrera?.distancia) faltan.push('datos de tu carrera (distancia y experiencia)');
   if (faltan.length) return { ok: false, motivo: 'Faltan datos para planificar con seguridad.', faltan };
   if (p.edad < 18) return { ok: false, motivo: 'Menarguez Fit IA es solo para mayores de 18 años.' };
   const s = p.screening;
@@ -135,7 +138,8 @@ export function prescription(p: Profile, e: Exercise, rol: Role): Prescription {
   const beginner = isBeginner(p);
   const compound = e.tipo === 'compuesto';
   let repsMin: number, repsMax: number, descansoSeg: number;
-  switch (p.objetivo) {
+  const goal = p.objetivo === 'carrera' ? (p.carrera && ['400', '800'].includes(p.carrera.distancia) ? 'fuerza' : 'salud') : p.objetivo;
+  switch (goal) {
     case 'fuerza':
       [repsMin, repsMax] = compound ? (beginner ? [6, 8] : [4, 6]) : [8, 12];
       descansoSeg = compound ? (beginner ? 120 : 180) : 75; break;
@@ -220,8 +224,10 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
   if (!check.ok) return check;
   const { usable, excluidos } = availableExercises(p);
   const pref = preferredDifficulty(p);
-  const { S, A } = strengthAerobicSplit(p);
-  const strengthDays = STRENGTH_DAYS[S] ?? [];
+  const runner = p.objetivo === 'carrera' && !!p.carrera;
+  const rd = runner ? runDaysFor(p) : null;
+  const { S, A } = runner ? { S: rd!.strength.length, A: 0 } : strengthAerobicSplit(p);
+  const strengthDays = runner ? rd!.strength : STRENGTH_DAYS[S] ?? [];
   const aerobicDays = AEROBIC_ORDER.filter((d) => !strengthDays.includes(d)).slice(0, A).sort((a, b) => a - b);
   const usedWeek: Record<string, number> = {};
   const notas: string[] = [];
@@ -251,12 +257,14 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
     // Ajuste al tiempo disponible: calentamiento + vuelta a la calma + ejercicios por orden de prioridad.
     const fixed = (p.minutos >= 45 ? 8 : 5) + 4;
     const items: PlannedExercise[] = [];
+    const roles: Role[] = [];
     let total = fixed;
     for (const { e, rol } of chosen) {
       const presc = prescription(p, e, rol);
       const m = exerciseMinutes(e, presc);
       if (items.length >= 3 && total + m > p.minutos) break;
       items.push({ exerciseId: e.id, presc });
+      roles.push(rol);
       total += m;
     }
     // Si incluso 3 ejercicios no caben, se reducen series (mínimo 1).
@@ -266,6 +274,23 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
       if (!target || target.presc.series <= 1) break;
       target.presc = { ...target.presc, series: target.presc.series - 1 };
       total = fixed + items.reduce((s, it) => s + exerciseMinutes(EXERCISE_BY_ID[it.exerciseId], it.presc), 0);
+    }
+    // Si sobra tiempo, una serie más en los ejercicios principales (sin superar el máximo por nivel).
+    if (!lowRecovery(p) && !p.dolorQueAumenta) {
+      const maxSeries = runner ? 3 : isBeginner(p) ? 3 : p.experiencia === 'intermedio' ? 4 : 5;
+      let added = true;
+      while (added) {
+        added = false;
+        for (let k = 0; k < items.length; k++) {
+          if (roles[k] !== 'principal' || items[k].presc.series >= maxSeries) continue;
+          const e = EXERCISE_BY_ID[items[k].exerciseId];
+          const extra = exerciseMinutes(e, { ...items[k].presc, series: items[k].presc.series + 1 }) - exerciseMinutes(e, items[k].presc);
+          if (total + extra <= p.minutos - 2) {
+            items[k].presc = { ...items[k].presc, series: items[k].presc.series + 1 };
+            total += extra; added = true;
+          }
+        }
+      }
     }
     items.forEach((it) => { usedWeek[it.exerciseId] = (usedWeek[it.exerciseId] ?? 0) + 1; });
 
@@ -308,6 +333,7 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
     });
   });
 
+  if (runner) sesiones.push(...runSessions(p, rd!.run, now));
   sesiones.sort((a, b) => a.dia - b.dia);
   const ocupados = new Set(sesiones.map((s) => s.dia));
   const diasDescanso = [0, 1, 2, 3, 4, 5, 6].filter((d) => !ocupados.has(d));
@@ -319,6 +345,7 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
   if (p.screening.embarazoPosparto) notas.push('Embarazo o posparto: sigue las indicaciones de tu matrona o profesional sanitario y evita esfuerzos máximos.');
   if (p.dolorQueAumenta) notas.push('Has indicado dolor que aumenta con el ejercicio. No progreses cargas en los ejercicios que lo provoquen y consulta a un profesional sanitario.');
   if (p.indicacionesProfesionales.trim()) notas.push(`Indicaciones profesionales a respetar: ${p.indicacionesProfesionales.trim()}`);
+  if (runner) notas.unshift(...runningNotes(p, now));
   notas.push('Carga inicial: elige un peso que te permita completar las repeticiones con técnica estable dejando las repeticiones en reserva indicadas. La app no propone kilos hasta tener tus registros.');
 
   const plan: WeekPlan = {
@@ -326,7 +353,8 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
     version: 1,
     sesiones,
     diasDescanso,
-    sugerenciaDescanso: ['salud', 'composicion', 'resistencia'].includes(p.objetivo)
+    sugerenciaDescanso: runner ? 'Descanso: caminar o nada. Los días sin carrera también forman parte de la preparación.'
+      : ['salud', 'composicion', 'resistencia'].includes(p.objetivo)
       ? 'En los días de descanso, un paseo de 20–30 min suma actividad sin interferir con la recuperación.'
       : 'Descanso: actividad cotidiana normal. Dormir bien también forma parte del plan.',
     notas,

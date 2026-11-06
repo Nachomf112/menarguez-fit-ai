@@ -36,8 +36,9 @@ export function exerciseHistory(sesiones: SessionLog[], exerciseId: string): Exe
 export function describeSets(log: LoggedExercise, unidad: string): string {
   const done = log.sets.filter((s) => s.hecho);
   return done.map((s) => {
-    const v = unidad === 'segundos' ? `${s.segundos ?? '?'} s` : `${s.reps ?? '?'}`;
-    return s.kg != null && s.kg > 0 ? `${v}×${s.kg} kg` : v;
+    if (unidad === 'segundos') return `${s.segundos ?? '?'} s`;
+    const r = `${s.reps ?? '?'}`;
+    return s.kg != null && s.kg > 0 ? `${r}×${s.kg} kg` : `${r} ${unidad === 'reps_lado' ? 'reps/lado' : 'reps'}`;
   }).join(', ');
 }
 
