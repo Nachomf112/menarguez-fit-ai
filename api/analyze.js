@@ -1,24 +1,25 @@
 // ════════════════════════════════════════════════════════════════
 // api/analyze.js — Menarguez Fit AI
 // ════════════════════════════════════════════════════════════════
-// v4:
-//   - Código de acceso OBLIGATORIO (sin código válido no se llama a Claude)
-//   - Valida activo / expiración / límite de usos
-//   - Barrera de edad (menores bloqueados, 403 edad_minima)
-//   - Modelo y max_tokens fijados en el servidor (el navegador no decide)
-//   - Códigos DEMO permitidos con límite diario por IP
-//   - Geolocalización por IP y stats diarias (como v3)
+// v5:
+//   - El navegador ya no envía prompts: solo { userCode, tipo, datos }.
+//     Tipos: comida, ejercicio, recomendacion, menu (prompts en api/_lib/prompts.js).
+//   - La respuesta de la IA se valida en el servidor y se devuelve estructurada.
+//   - El uso se descuenta solo si la IA responde bien (un error de Anthropic no gasta usos).
+//   - La recomendación automática no gasta usos (límite diario por código).
+//   - Sin ipapi.co: ubicación aproximada con las cabeceras de Vercel.
+//   - Tiempos máximos en Upstash y Anthropic.
+// v4 (se mantiene): código obligatorio, activo/caducidad/límite, barrera de edad,
+//   modelo fijado en servidor, demo con límite diario por IP, stats diarias.
 // ════════════════════════════════════════════════════════════════
+
+import { esDemo, esFormatoValido, kvGetJson, normalizarCodigo } from './_lib/codigo.js';
+import { TIPOS } from './_lib/prompts.js';
 
 const FREE_LIMIT = 30;   // análisis totales plan Free
 const PRO_LIMIT = 0;     // 0 = ilimitado
-
+const RECOMENDACIONES_DIA = 40;   // por código (no gastan usos)
 const MODEL = process.env.FIT_MODEL || 'claude-sonnet-4-6';
-const MAX_TOKENS_CAP = 500;       // tope por petición (la app pide 150-400)
-const MAX_MESSAGES = 2;
-const MAX_CONTENT_CHARS = 4000;
-
-const DEMO_CODES = ['DEMO-2026', 'FIT-DEMO'];
 const DEMO_LIMIT_DIA_IP = 10;     // análisis demo por IP y día
 const ALLOWED_ORIGIN = process.env.FIT_ALLOWED_ORIGIN || 'https://fit.menarguez-ia.com';
 
@@ -42,7 +43,7 @@ function parseFecha(v) {
 }
 
 // true si el perfil guardado es de un menor (por fechaNac; si no la tiene, por la edad antigua)
-function esPerfilMenor(p, hoy = new Date()) {
+export function esPerfilMenor(p, hoy = new Date()) {
   if (!p || typeof p !== 'object') return false;
   const f = parseFecha(p.fechaNac ?? p.fechaNacimiento ?? p.fecha_nacimiento);
   if (f) {
@@ -54,27 +55,7 @@ function esPerfilMenor(p, hoy = new Date()) {
   return typeof p.edad === 'number' && p.edad < EDAD_MINIMA;
 }
 
-function leerJson(raw) {
-  if (Array.isArray(raw)) raw = raw[0];
-  if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch (e) {} }
-  if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch (e) {} }
-  return (raw && typeof raw === 'object') ? raw : null;
-}
-
-// Reduce el cuerpo del cliente a lo estrictamente permitido
-function construirPeticion(body) {
-  const msgs = body.messages;
-  if (!Array.isArray(msgs) || msgs.length === 0 || msgs.length > MAX_MESSAGES) return null;
-  const messages = [];
-  for (const m of msgs) {
-    if (!m || (m.role !== 'user' && m.role !== 'assistant')) return null;
-    if (typeof m.content !== 'string' || !m.content || m.content.length > MAX_CONTENT_CHARS) return null;
-    messages.push({ role: m.role, content: m.content });
-  }
-  const pedido = Number(body.max_tokens);
-  const max_tokens = Math.min(Number.isFinite(pedido) && pedido > 0 ? Math.floor(pedido) : 300, MAX_TOKENS_CAP);
-  return { model: MODEL, max_tokens, messages };
-}
+const hoyMadrid = () => new Date().toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
 
 export default async function handler(req, res) {
 
@@ -82,19 +63,17 @@ export default async function handler(req, res) {
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'API key no configurada' });
-  }
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'configuracion_incompleta' });
   const kvUrl = process.env.KV_REST_API_URL;
   const kvToken = process.env.KV_REST_API_TOKEN;
-  if (!kvUrl || !kvToken) {
-    return res.status(500).json({ error: 'Configuración incompleta' });
-  }
-  const kvHeaders = { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' };
+  if (!kvUrl || !kvToken) return res.status(500).json({ error: 'configuracion_incompleta' });
+  const kv = { url: kvUrl, headers: { Authorization: `Bearer ${kvToken}`, 'Content-Type': 'application/json' } };
+  const kvCmd = (path, ms = 5000) => fetch(`${kvUrl}/${path}`, { method: 'POST', headers: kv.headers, signal: AbortSignal.timeout(ms) });
 
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
 
@@ -106,36 +85,27 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'JSON no válido' });
     }
 
+    // ── TIPO DE PETICIÓN (sin mensajes libres) ───────────────
+    const tipo = typeof body.tipo === 'string' && Object.hasOwn(TIPOS, body.tipo) ? TIPOS[body.tipo] : null;
+    if (!tipo) return res.status(400).json({ error: 'peticion_invalida', message: 'Tipo de petición no válido.' });
+    const preparado = tipo.preparar(body.datos || {});
+    if (preparado.error) return res.status(400).json({ error: preparado.error });
+
     // ── CÓDIGO OBLIGATORIO ───────────────────────────────────
-    const userCode = typeof body.userCode === 'string' ? body.userCode.trim().toUpperCase() : '';
-    if (!userCode) {
-      return res.status(401).json({ error: 'codigo_requerido', message: 'Necesitas un código de acceso.' });
-    }
-    if (!/^[A-Z0-9-]{4,30}$/.test(userCode)) {
-      return res.status(401).json({ error: 'codigo_invalido', message: 'Código no válido.' });
-    }
+    const userCode = normalizarCodigo(body.userCode);
+    if (!userCode) return res.status(401).json({ error: 'codigo_requerido', message: 'Necesitas un código de acceso.' });
 
-    const claudeBody = construirPeticion(body);
-    if (!claudeBody) {
-      return res.status(400).json({ error: 'peticion_invalida' });
-    }
+    let codeData = null;
 
-    let usos_usados_updated = undefined;
-
-    if (DEMO_CODES.includes(userCode)) {
+    if (esDemo(userCode)) {
       // ── DEMO: límite diario por IP ─────────────────────────
       try {
         const clave = `fitai:demo:${ip}:${new Date().toISOString().slice(0, 10)}`;
-        const incr = await fetch(`${kvUrl}/incr/${encodeURIComponent(clave)}`, { method: 'POST', headers: kvHeaders });
-        const n = (await incr.json()).result;
+        const n = (await (await kvCmd(`incr/${encodeURIComponent(clave)}`)).json()).result;
         if (typeof n !== 'number') throw new Error('incr sin resultado');
-        if (n === 1) await fetch(`${kvUrl}/expire/${encodeURIComponent(clave)}/86400`, { method: 'POST', headers: kvHeaders });
+        if (n === 1) await kvCmd(`expire/${encodeURIComponent(clave)}/86400`);
         if (n > DEMO_LIMIT_DIA_IP) {
-          return res.status(429).json({
-            error: 'limite_alcanzado',
-            message: 'Has alcanzado el límite diario de la demo. Solicita tu acceso gratuito de 2 días.',
-            upgrade: false
-          });
+          return res.status(429).json({ error: 'limite_alcanzado', message: 'Has alcanzado el límite diario de la demo. Solicita tu acceso gratuito de 2 días.', upgrade: false });
         }
       } catch (demoErr) {
         console.warn('Error límite demo:', demoErr.message);
@@ -143,117 +113,84 @@ export default async function handler(req, res) {
       }
     } else {
       // ── CÓDIGO REAL ────────────────────────────────────────
-      let codeData;
+      if (!esFormatoValido(userCode)) return res.status(401).json({ error: 'codigo_invalido', message: 'Código no válido.' });
       try {
         // Barrera de edad: un perfil de menor no puede usar la IA
-        const profResp = await fetch(`${kvUrl}/get/profile:${userCode}`, { headers: kvHeaders });
-        const profData = await profResp.json();
-        if (profData.result) {
-          let p = profData.result;
-          if (typeof p === 'string') { try { p = JSON.parse(p); } catch (e) {} }
-          if (esPerfilMenor(p)) {
-            return res.status(403).json({ error: 'edad_minima', message: MSG_MENOR });
-          }
+        if (esPerfilMenor(await kvGetJson(kv, `profile:${userCode}`))) {
+          return res.status(403).json({ error: 'edad_minima', message: MSG_MENOR });
         }
-
-        const getResp = await fetch(`${kvUrl}/get/code:${userCode}`, { headers: kvHeaders });
-        const getData = await getResp.json();
-        if (!getData.result) {
-          return res.status(401).json({ error: 'codigo_invalido', message: 'Código no encontrado.' });
-        }
-        codeData = leerJson(getData.result);
+        codeData = await kvGetJson(kv, `code:${userCode}`);
       } catch (kvErr) {
         console.warn('Error KV:', kvErr.message);
         return res.status(503).json({ error: 'servicio_no_disponible', message: 'Inténtalo de nuevo en un momento.' });
       }
-
-      if (!codeData) {
-        return res.status(401).json({ error: 'codigo_invalido', message: 'Código no válido.' });
-      }
-      if (!codeData.activo) {
-        return res.status(401).json({ error: 'codigo_desactivado', message: 'Código desactivado. Contacta con info@menarguez-ia.com' });
-      }
+      if (!codeData) return res.status(401).json({ error: 'codigo_invalido', message: 'Código no encontrado.' });
+      if (!codeData.activo) return res.status(401).json({ error: 'codigo_desactivado', message: 'Código desactivado. Contacta con info@menarguez-ia.com' });
       if (codeData.expira && new Date() > new Date(codeData.expira)) {
         return res.status(401).json({ error: 'codigo_expirado', message: 'Código expirado. Contacta con info@menarguez-ia.com' });
       }
 
-      const plan = codeData.plan || 'free';
-      const usosUsados = codeData.usos_usados || 0;
-      const limite = plan === 'pro' ? PRO_LIMIT : FREE_LIMIT;
-
-      // ── VERIFICAR LÍMITE ──────────────────────────────────
-      if (limite > 0 && usosUsados >= limite) {
-        return res.status(429).json({
-          error: 'limite_alcanzado',
-          message: `Has agotado tus ${limite} análisis del plan Free. Actualiza a Pro por 4,99€/mes para continuar sin límites.`,
-          usos_usados: usosUsados,
-          usos_max: limite,
-          upgrade: true
-        });
-      }
-
-      // ── INCREMENTAR USOS ──────────────────────────────────
-      codeData.usos_usados = usosUsados + 1;
-      usos_usados_updated = codeData.usos_usados;
-
-      // ── GEOLOCALIZACIÓN POR IP ────────────────────────────
-      if (!codeData.ubicacion && ip !== 'unknown') {
-        try {
-          const geoResp = await fetch(`https://ipapi.co/${ip}/json/`);
-          const geoData = await geoResp.json();
-          if (geoData && geoData.city) {
-            codeData.ubicacion = {
-              ciudad: geoData.city || '',
-              region: geoData.region || '',
-              pais: geoData.country_name || '',
-              codigo_pais: geoData.country_code || ''
-            };
-          }
-        } catch (geoErr) {
-          console.warn('Error geolocalización:', geoErr.message);
+      if (tipo.consume) {
+        const limite = (codeData.plan || 'free') === 'pro' ? PRO_LIMIT : FREE_LIMIT;
+        const usados = Number(codeData.usos_usados) || 0;
+        if (limite > 0 && usados >= limite) {
+          return res.status(429).json({
+            error: 'limite_alcanzado',
+            message: `Has agotado tus ${limite} análisis del plan Free. Actualiza a Pro por 4,99€/mes para continuar sin límites.`,
+            usos_usados: usados, usos_max: limite, upgrade: true,
+          });
         }
-      }
-
-      // ── GUARDAR EN UPSTASH ────────────────────────────────
-      try {
-        await fetch(`${kvUrl}/set/code:${userCode}`, {
-          method: 'POST',
-          headers: kvHeaders,
-          body: JSON.stringify(codeData)
-        });
-      } catch (setErr) {
-        console.warn('Error guardando usos:', setErr.message);
-      }
-
-      // ── STATS DIARIAS ─────────────────────────────────────
-      try {
-        const fechaHoy = new Date().toLocaleDateString('es-ES', {
-          timeZone: 'Europe/Madrid',
-          year: 'numeric', month: '2-digit', day: '2-digit'
-        }).split('/').reverse().join('-');
-        await fetch(`${kvUrl}/hincrby/fitai:stats:daily/${fechaHoy}/1`, {
-          method: 'POST',
-          headers: kvHeaders
-        });
-      } catch (statsErr) {
-        console.warn('Error stats diarias:', statsErr.message);
+      } else {
+        // Recomendación: no gasta usos, pero tiene límite diario por código
+        try {
+          const clave = `fitai:reco:${userCode}:${hoyMadrid()}`;
+          const n = (await (await kvCmd(`incr/${encodeURIComponent(clave)}`)).json()).result;
+          if (n === 1) await kvCmd(`expire/${encodeURIComponent(clave)}/90000`);
+          if (typeof n === 'number' && n > RECOMENDACIONES_DIA) return res.status(429).json({ error: 'limite_recomendaciones' });
+        } catch (e) { console.warn('Error límite recomendaciones:', e.message); }
       }
     }
 
     // ── LLAMADA A CLAUDE ─────────────────────────────────────
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify(claudeBody)
-    });
+    let texto;
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: MODEL, max_tokens: tipo.max_tokens, messages: [{ role: 'user', content: preparado.prompt }] }),
+        signal: AbortSignal.timeout(25000),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        console.warn('Anthropic', response.status, data?.error?.type);
+        return res.status(response.status === 429 || response.status === 529 ? 503 : 502).json({ error: 'ia_no_disponible', message: 'La IA no está disponible ahora mismo. No se ha gastado ningún uso.' });
+      }
+      texto = Array.isArray(data.content) ? data.content.map((c) => c.text || '').join('').trim() : '';
+    } catch (e) {
+      console.warn('Anthropic error:', e.message);
+      return res.status(503).json({ error: 'ia_no_disponible', message: 'La IA no está disponible ahora mismo. No se ha gastado ningún uso.' });
+    }
 
-    const data = await response.json();
-    if (usos_usados_updated !== undefined) data.usos_usados = usos_usados_updated;
-    return res.status(200).json(data);
+    const resultado = tipo.leer(texto);
+    if (!resultado) return res.status(422).json({ error: 'respuesta_no_valida', message: 'No he podido interpretarlo. Prueba a describirlo de otra forma. No se ha gastado ningún uso.' });
+
+    // ── DESCONTAR USO (solo tras una respuesta válida) ───────
+    let usos_usados;
+    if (codeData && tipo.consume) {
+      codeData.usos_usados = (Number(codeData.usos_usados) || 0) + 1;
+      usos_usados = codeData.usos_usados;
+      // Ubicación aproximada sin terceros: cabeceras de geolocalización de Vercel
+      if (!codeData.ubicacion && req.headers['x-vercel-ip-country']) {
+        const dec = (v) => { try { return decodeURIComponent(v || ''); } catch { return ''; } };
+        codeData.ubicacion = { ciudad: dec(req.headers['x-vercel-ip-city']), region: dec(req.headers['x-vercel-ip-country-region']), pais: req.headers['x-vercel-ip-country'], codigo_pais: req.headers['x-vercel-ip-country'] };
+      }
+      try {
+        await fetch(`${kvUrl}/set/${encodeURIComponent(`code:${userCode}`)}`, { method: 'POST', headers: kv.headers, body: JSON.stringify(codeData), signal: AbortSignal.timeout(5000) });
+      } catch (setErr) { console.warn('Error guardando usos:', setErr.message); }
+      try { await kvCmd(`hincrby/fitai:stats:daily/${hoyMadrid()}/1`); } catch (statsErr) { console.warn('Error stats diarias:', statsErr.message); }
+    }
+
+    return res.status(200).json({ resultado, ...(usos_usados !== undefined ? { usos_usados } : {}) });
 
   } catch (err) {
     console.error('analyze error:', err);

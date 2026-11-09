@@ -1491,6 +1491,38 @@ function toast(msg) {
   $('toasts').appendChild(t);
   setTimeout(() => t.remove(), 3000);
 }
+// ── IA: el navegador envía tipo + datos; los prompts viven en el servidor ──
+function escHtml(v) {
+  return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+async function llamarIA(tipo, datos) {
+  const resp = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userCode: currentUser ? currentUser.code : '', tipo, datos })
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (data.usos_usados !== undefined && currentUser) {
+    currentUser.usos_usados = data.usos_usados;
+    localStorage.setItem('fitai_user', JSON.stringify(currentUser));
+  }
+  if (!resp.ok || !data.resultado) {
+    const err = new Error(data.error || 'error');
+    err.codigo = data.error || 'error';
+    err.mensaje = data.message || 'Error al conectar con la IA. Inténtalo de nuevo.';
+    throw err;
+  }
+  return data.resultado;
+}
+// Mensaje claro para cada error; true si ya se ha mostrado algo (p. ej. el modal de límite)
+function avisarErrorIA(e) {
+  if (e.codigo === 'limite_alcanzado') { showUpgradeModal(); return true; }
+  if (e.codigo === 'edad_minima') { bloquearMenor(); return true; }
+  if (/^codigo_/.test(e.codigo || '')) { toast('Tu código ya no es válido. Vuelve a entrar.'); return true; }
+  toast(e.mensaje || 'Error al analizar. Inténtalo de nuevo.');
+  return true;
+}
+
 function showUpgradeModal() {
   document.getElementById('modalUpgrade').classList.add('open');
 }
@@ -1857,40 +1889,7 @@ async function addFood(meal) {
   input.disabled = true;
 
   try {
-    const prompt = `Eres un nutricionista experto. Analiza el siguiente alimento o comida y devuelve sus valores nutricionales.
-
-ALIMENTO: ${text}
-
-Responde ÚNICAMENTE con JSON válido sin markdown:
-{"nombre":"nombre del alimento limpio y corto","kcal":número,"proteina":número en gramos,"carbos":número en gramos,"grasa":número en gramos,"porcion":"descripción de la porción estimada"}
-
-Si son varios alimentos, calcula el total. Sé preciso con las calorías reales, no aproximes de más.`;
-
-    const resp = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userCode: currentUser?.code || '',
-        model: 'claude-sonnet-4-6',
-        max_tokens: 300,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    const data = await resp.json();
-
-    // Manejo error límite alcanzado
-    if (data.error === 'limite_alcanzado') {
-      showUpgradeModal();
-      return;
-    } 
-
-    const raw = data.content.map(i => i.text || '').join('').replace(/```json|```/g, '').trim();
-    const r = JSON.parse(raw);
-    if (data.usos_usados !== undefined) {
-      currentUser.usos_usados = data.usos_usados;
-      localStorage.setItem('fitai_user', JSON.stringify(currentUser));
-    }
+    const r = await llamarIA('comida', { texto: text });
 
     comidas[meal].push(r);
     saveComidas();
@@ -1902,7 +1901,7 @@ Si son varios alimentos, calcula el total. Sé preciso con las calorías reales,
     toast('✅ ' + r.nombre + ' — ' + r.kcal + ' kcal');
 
   } catch (e) {
-    toast('❌ Error al analizar. Inténtalo de nuevo.');
+    avisarErrorIA(e);
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
@@ -1931,9 +1930,9 @@ function renderMeal(meal) {
 
   itemsEl.innerHTML = items.map((item, idx) => `
     <div class="alimento-item">
-      <span class="alimento-name">${item.nombre} <span style="font-size:10px;color:var(--muted)">${item.porcion || ''}</span></span>
-      <span class="alimento-macros">${item.proteina}p · ${item.carbos}c · ${item.grasa}g</span>
-      <span class="alimento-kcal">${item.kcal}</span>
+      <span class="alimento-name">${escHtml(item.nombre)} <span style="font-size:10px;color:var(--muted)">${escHtml(item.porcion || '')}</span></span>
+      <span class="alimento-macros">${escHtml(item.proteina)}p · ${escHtml(item.carbos)}c · ${escHtml(item.grasa)}g</span>
+      <span class="alimento-kcal">${escHtml(item.kcal)}</span>
       <button class="btn-fav ${esFavorito(item.nombre) ? 'guardado' : ''}" onclick="toggleFavorito(comidas['${meal}'][${idx}])" title="${esFavorito(item.nombre) ? 'Quitar favorito' : 'Guardar favorito'}">⭐</button>
       <button class="alimento-del" onclick="removeFood('${meal}',${idx})">×</button>
     </div>
@@ -2021,32 +2020,11 @@ async function updateRecomendacion() {
   const restante = obj - kcal;
   const objLabels = { adelgazar: 'perder peso', musculo: 'ganar músculo', definir: 'definir el cuerpo' };
 
-  const prompt = `Eres un nutricionista. El usuario quiere ${objLabels[perfil?.objetivo || 'adelgazar']}.
-
-Datos de hoy:
-- Calorías consumidas: ${kcal} kcal de ${obj} kcal objetivo
-- Proteína: ${prot}g (objetivo: ${perfil?.protObj || 150}g)
-- Carbos: ${carb}g
-- Grasa: ${fat}g
-- Calorías restantes: ${restante}
-
-Dame una recomendación breve, directa y motivadora en 2-3 frases máximo. Menciona qué le falta o qué ha hecho bien hoy. Sin saludos ni introducciones. Directo al grano. Responde siempre en español. Sin markdown ni asteriscos.`;
-
   try {
-    const resp = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userCode: currentUser?.code || '',
-        model: 'claude-sonnet-4-6',
-        max_tokens: 150,
-        messages: [{ role: 'user', content: prompt }]
-      })
+    const r = await llamarIA('recomendacion', {
+      kcal, prot, carb, fat, objKcal: obj, protObj: perfil?.protObj || 150, objetivo: perfil?.objetivo || 'adelgazar'
     });
-    const data = await resp.json();
-    if (data.error === 'limite_alcanzado') return;
-    const text = data.content.map(i => i.text || '').join('').trim();
-    $('iaRecomendacion').textContent = text;
+    $('iaRecomendacion').textContent = r.texto;
     $('iaRecomendacion').classList.remove('muted');
   } catch (e) { }
 }
@@ -2065,29 +2043,7 @@ async function addEjercicio() {
   input.disabled = true;
 
   try {
-    const prompt = 'Eres un experto en fitness y nutricion deportiva. Calcula las calorias aproximadas quemadas para la siguiente actividad. Devuelve SOLO JSON valido sin markdown ni explicaciones: {"actividad":"nombre descriptivo corto","kcal":numero_entero_positivo,"duracion":"duracion descrita"}. Ejemplo: {"actividad":"Carrera continua","kcal":350,"duracion":"30 minutos"}. IMPORTANTE: kcal debe ser siempre un numero mayor que 0. Actividad: ' + text;
-
-    const resp = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userCode: currentUser ? currentUser.code : '',
-        model: 'claude-sonnet-4-6',
-        max_tokens: 150,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    const data = await resp.json();
-    if (data.error === 'limite_alcanzado') { showUpgradeModal(); return; }
-
-    const raw = data.content.map(function(i) { return i.text || ''; }).join('').replace(/```json|```/g, '').trim();
-    const r = JSON.parse(raw);
-
-    if (data.usos_usados !== undefined) {
-      currentUser.usos_usados = data.usos_usados;
-      localStorage.setItem('fitai_user', JSON.stringify(currentUser));
-    }
+    const r = await llamarIA('ejercicio', { texto: text });
 
     ejercicios.push(r);
     saveEjercicios();
@@ -2098,7 +2054,7 @@ async function addEjercicio() {
     toast('🏃 ' + r.actividad + ' — ' + r.kcal + ' kcal quemadas');
 
   } catch (e) {
-    toast('Error al calcular. Intentalo de nuevo.');
+    avisarErrorIA(e);
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
@@ -2120,7 +2076,7 @@ function renderEjercicios() {
   const total = ejercicios.reduce(function(s, e) { return s + (e.kcal || 0); }, 0);
   kcalEl.textContent = total;
   itemsEl.innerHTML = ejercicios.map(function(e, idx) {
-    return '<div class="ejercicio-item"><span style="color:var(--text);flex:1">' + e.actividad + ' <span style="font-size:10px;color:var(--muted)">' + (e.duracion || '') + '</span></span><span style="font-family:DM Mono,monospace;font-size:13px;color:var(--blue);font-weight:500;min-width:50px;text-align:right">' + e.kcal + '</span><button class="ejercicio-del" onclick="removeEjercicio(' + idx + ')">×</button></div>';
+    return '<div class="ejercicio-item"><span style="color:var(--text);flex:1">' + escHtml(e.actividad) + ' <span style="font-size:10px;color:var(--muted)">' + escHtml(e.duracion || '') + '</span></span><span style="font-family:DM Mono,monospace;font-size:13px;color:var(--blue);font-weight:500;min-width:50px;text-align:right">' + escHtml(e.kcal) + '</span><button class="ejercicio-del" onclick="removeEjercicio(' + idx + ')">×</button></div>';
   }).join('');
 }
 
@@ -2338,8 +2294,8 @@ function renderFavoritos(meal) {
         <div class="favoritos-list">
           ${favoritos.map((f, i) => `
             <div class="favorito-item" onclick="addFavoritoAComida('${meal}', ${i})">
-              <span class="favorito-nombre">${f.nombre}</span>
-              <span class="favorito-kcal">${f.kcal} kcal</span>
+              <span class="favorito-nombre">${escHtml(f.nombre)}</span>
+              <span class="favorito-kcal">${escHtml(f.kcal)} kcal</span>
               <button class="favorito-del" onclick="event.stopPropagation();eliminarFavorito(${i},'${meal}')">×</button>
             </div>
           `).join('')}
@@ -2371,27 +2327,18 @@ async function generarSugerencia() {
   const objLabels = { adelgazar: 'perder peso', musculo: 'ganar músculo', definir: 'definir el cuerpo' };
 
   $('sugeridorOutput').innerHTML = '<span class="spinner"></span> Generando menú personalizado<span class="loading-dots"></span>';
-  const yaComidasTexto = Object.entries(comidas).filter(([k,v]) => v.length > 0).map(([k,v]) => `${k}: ${v.map(i=>i.nombre).join(', ')}`).join(' | ') || 'ninguna';
-  const prompt = `Eres un nutricionista experto. El usuario quiere ${objLabels[perfil?.objetivo || 'adelgazar']}. Objetivo calorico diario: ${perfil?.objKcal || 2000} kcal. Objetivo proteina: ${perfil?.protObj || 150}g/dia. Ya ha comido hoy ${kcal} kcal. Comidas ya registradas: ${yaComidasTexto}. Le quedan ${restante} kcal. Responde SIEMPRE con este formato exacto, sin excepciones:\n✅ Ya registrado: [lista lo que ya ha comido]\n\nResto del dia sugerido:\nNombreComida: descripcion (X kcal)\n\nSolo sugiere comidas para lo que falta. Sin introducciones.`;
+  const comidasHoy = Object.entries(comidas).filter(([k, v]) => v.length > 0).map(([k, v]) => ({ momento: k, nombres: v.map(i => i.nombre) }));
 
   try {
-    const resp = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userCode: currentUser?.code || '',
-        model: 'claude-sonnet-4-6',
-        max_tokens: 600,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await resp.json();
-    if (data.error === 'limite_alcanzado') {
-      showUpgradeModal();
-      $('modalSugeridor').classList.remove('open');
+    let text;
+    try {
+      const r = await llamarIA('menu', { kcal, objKcal: perfil?.objKcal || 2000, protObj: perfil?.protObj || 150, objetivo: perfil?.objetivo || 'adelgazar', comidas: comidasHoy });
+      text = escHtml(r.texto);
+    } catch (e) {
+      if (e.codigo === 'limite_alcanzado') { showUpgradeModal(); $('modalSugeridor').classList.remove('open'); return; }
+      $('sugeridorOutput').textContent = e.mensaje || 'Error al generar sugerencia.';
       return;
     }
-    const text = data.content.map(i => i.text || '').join('').trim();
     $('sugeridorOutput').innerHTML = text
   .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
   .replace(/(✅[^\n]+(\n\([^)]+\))?)/g, '<span style="color:var(--green);font-weight:700">$1</span>')
