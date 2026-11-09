@@ -11,7 +11,7 @@ export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_PlnuoNIDMOsIKvazXL3szw_n
  * La clave secreta va solo en Supabase → Authentication → Attack Protection, nunca aquí.
  * Activar primero aquí (y desplegar) y después en Supabase; si se hace al revés, nadie podrá entrar.
  */
-export const TURNSTILE_SITE_KEY = '';
+export const TURNSTILE_SITE_KEY = '0x4AAAAAAF6R6Rv18RVRBkRY';
 
 /** Versión de los textos de términos y consentimiento. Cambiarla obliga a aceptar de nuevo. */
 export const CONSENT_VERSION = '2026-11';

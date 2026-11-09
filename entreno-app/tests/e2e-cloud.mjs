@@ -11,6 +11,10 @@ const server = serve(4318);
 const SB = 'https://yosanpfxozkgspeftlgb.supabase.co';
 const PUBLISHABLE = 'sb_publishable_PlnuoNIDMOsIKvazXL3szw_ndETA4Ft';
 
+const FAKE_TURNSTILE = `window.turnstile = (() => { const w = {}; let n = 0, ids = 0;
+  const give = (id) => setTimeout(() => { if (w[id]) w[id].callback('token-prueba-' + (++n)); }, 20);
+  return { render(el, o) { const id = 'w' + (++ids); w[id] = o; el.textContent = 'Verificación simulada'; give(id); return id; },
+           reset(id) { if (w[id]) give(id); }, remove(id) { delete w[id]; } }; })();`;
 const results = [];
 const check = (name, cond, extra = '') => { results.push({ name, ok: !!cond }); console.log(`${cond ? 'OK  ' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); };
 
@@ -32,6 +36,7 @@ const db = {
   log: [],
   signups: [],
   rpc: [],
+  captchas: [],
 };
 let seq = 10;
 const userJson = (u) => ({ id: u.id, aud: 'authenticated', role: 'authenticated', email: u.email, email_confirmed_at: '2026-11-01T00:00:00Z', app_metadata: { provider: 'email' }, user_metadata: {}, identities: [{}], factors: u.factors, created_at: '2026-11-01T00:00:00Z' });
@@ -48,6 +53,7 @@ async function fakeSupabase(route) {
   const body = req.postData() ? JSON.parse(req.postData()) : null;
   const p = url.pathname;
 
+  if (p.startsWith('/auth/v1/') && body) db.captchas.push(body.gotrue_meta_security?.captcha_token ?? null);
   if (p === '/auth/v1/signup') { db.signups.push(body); return json(200, { id: 'nuevo', email: body.email, identities: [] }); }
   if (p === '/auth/v1/token' && url.searchParams.get('grant_type') === 'password') {
     const u = Object.values(db.users).find((x) => x.email === body.email && x.pw === body.password);
@@ -104,12 +110,14 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, de
 const page = await ctx.newPage();
 const errors = [];
 const terceros = [];
+let captchaCargado = false;
 await ctx.addInitScript(() => { window.__csp = []; document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(`${e.violatedDirective} ${e.blockedURI}`)); });
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/ERR_|net::|status of 4\d\d/.test(m.text())) errors.push(m.text()); });
 await ctx.route('**/*', (route) => {
   const url = route.request().url();
-  if (!url.startsWith('http://localhost') && !url.startsWith('https://yosanpfxozkgspeftlgb.supabase.co')) terceros.push(url);
+  if (!url.startsWith('http://localhost') && !url.startsWith('https://yosanpfxozkgspeftlgb.supabase.co') && !url.startsWith('https://challenges.cloudflare.com/turnstile/')) terceros.push(url);
+  if (url.startsWith('https://challenges.cloudflare.com/turnstile/v0/api.js')) { captchaCargado = true; return route.fulfill({ contentType: 'application/javascript', body: FAKE_TURNSTILE }); }
   if (url.startsWith(SB)) return fakeSupabase(route);
   if (url.startsWith('http://localhost:4318')) return route.continue();
   return route.abort();
@@ -158,6 +166,8 @@ await page.check('#acc-terminos');
 await shot('c02-crear-cuenta');
 await page.locator('form').getByRole('button', { name: 'Crear cuenta' }).click();
 await page.getByText('Si el correo es válido').waitFor();
+check('el CAPTCHA se carga solo en la pantalla de acceso', captchaCargado);
+check('el registro envía el token del CAPTCHA', /^token-prueba-/.test(db.signups[0]?.gotrue_meta_security?.captcha_token ?? ''));
 check('registro enviado con redirección a la app', db.signups.length === 1 && db.signups[0].email === 'ana.ficticia@example.com');
 check('la contraseña no se guarda en el navegador', !(await page.evaluate(() => JSON.stringify(localStorage))).includes('Ficticia-Prueba-2026'));
 
@@ -171,6 +181,7 @@ check('contraseña incorrecta: mensaje genérico', true);
 await page.fill('#acc-pw', 'Ficticia-Prueba-2026');
 await page.locator('form').getByRole('button', { name: 'Entrar', exact: true }).click();
 await page.getByRole('heading', { name: 'Guardar tus datos en la cuenta' }).waitFor();
+check('cada intento usa un token nuevo', db.captchas.filter(Boolean).length >= 3 && new Set(db.captchas.filter(Boolean)).size === db.captchas.filter(Boolean).length);
 check('términos registrados automáticamente', db.consentimientos.some((c) => c.user_id === 'u1' && c.tipo === 'terminos' && c.aceptado));
 check('sin consentimiento no se sube nada', db.atletas.length === 0);
 await shot('c03-consentimiento');
