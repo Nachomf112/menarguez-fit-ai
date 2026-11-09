@@ -77,6 +77,8 @@ export default async function handler(req, res) {
 
       if (action === 'delete') {
         await fetch(`${kvUrl}/del/code:${code}`, { method: 'POST', headers: kvHeaders });
+        // Al borrar el código se borra también su perfil (datos personales), para no dejar perfiles huérfanos.
+        await fetch(`${kvUrl}/del/${encodeURIComponent('profile:' + String(code).trim().toUpperCase())}`, { method: 'POST', headers: kvHeaders });
         return res.status(200).json({ ok: true });
       }
 

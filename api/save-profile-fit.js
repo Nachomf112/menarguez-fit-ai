@@ -3,10 +3,17 @@
 // Guarda y lee el perfil del usuario en Upstash vinculado al código
 // Clave: profile:FIT-XXXX-XXXX
 // v2: barrera de edad mínima (18) en el servidor al guardar el perfil
+// v3: el código debe tener formato válido y existir, estar activo y no caducado
+//     (para leer y para guardar); el perfil demo no se guarda en el servidor;
+//     solo se guardan los campos esperados, con tipo y límites.
 // ════════════════════════════════════════════════════════════════
+
+import { esDemo, esFormatoValido, estadoCodigo, kvGetJson, normalizarCodigo } from './_lib/codigo.js';
+import { limpiarTexto } from './_lib/texto.js';
 
 const EDAD_MINIMA = 18;
 const EDAD_MAXIMA = 120;
+const MAX_BODY = 4000;   // caracteres: un perfil real ocupa unos 300
 
 // Acepta "YYYY-MM-DD" (input type=date) y "DD/MM/YYYY". Devuelve Date UTC o null.
 function parseFecha(v) {
@@ -60,69 +67,119 @@ export function validarRangos(perfil) {
   return null;
 }
 
+const SEXOS = new Set(['hombre', 'mujer']);
+const ACTIVIDADES = new Set(['sedentario', 'ligero', 'moderado', 'activo', 'muy_activo']);
+const OBJETIVOS = new Set(['adelgazar', 'musculo', 'definir', 'mantener']);
+const entero = (v, min, max) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= min && n <= max ? n : null; };
+
+/**
+ * Construye el perfil que se guarda: solo campos conocidos, con tipo y límites.
+ * Los campos extra se descartan. La edad se recalcula a partir de la fecha de nacimiento.
+ * Devuelve { perfil } o { rechazo }.
+ */
+export function perfilSeguro(p, hoy = new Date()) {
+  const rechazo = validarEdad(p, hoy) || validarRangos(p);
+  if (rechazo) return { rechazo };
+  const fechaNac = parseFecha(p.fechaNac ?? p.fechaNacimiento ?? p.fecha_nacimiento);
+  const mal = (campo) => ({ rechazo: { status: 400, error: `${campo}_invalido`, mensaje: 'Revisa los datos del perfil.' } });
+  if (!SEXOS.has(p.sexo)) return mal('sexo');
+  if (!ACTIVIDADES.has(p.actividad)) return mal('actividad');
+  if (!OBJETIVOS.has(p.objetivo)) return mal('objetivo');
+  const perfil = {
+    nombre: limpiarTexto(p.nombre, 60),
+    peso: Math.round(Number(p.peso) * 10) / 10,
+    altura: Math.round(Number(p.altura)),
+    fechaNac: fechaNac.toISOString().slice(0, 10),
+    edad: edadEn(fechaNac, hoy),
+    sexo: p.sexo,
+    actividad: p.actividad,
+    objetivo: p.objetivo,
+  };
+  // Objetivos calculados en el cliente (hasta que el cálculo pase al servidor): solo números en rango.
+  const rangos = { tdee: [500, 8000], objKcal: [500, 8000], protObj: [0, 500], fatObj: [0, 500], carbObj: [0, 1500] };
+  for (const [k, [min, max]] of Object.entries(rangos)) {
+    const n = entero(p[k], min, max);
+    if (n === null) return mal(k);
+    perfil[k] = n;
+  }
+  return { perfil };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
     return res.status(500).json({ error: 'Configuración incompleta' });
   }
 
-  const kvUrl = process.env.KV_REST_API_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN;
-  const kvHeaders = {
-    Authorization: `Bearer ${kvToken}`,
-    'Content-Type': 'application/json'
+  const kv = {
+    url: process.env.KV_REST_API_URL,
+    headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`, 'Content-Type': 'application/json' },
   };
+
+  // Comprueba el código. Devuelve null si se puede usar, o la respuesta de error ya enviada.
+  async function rechazarCodigo(code) {
+    if (!esFormatoValido(code)) return res.status(400).json({ error: 'codigo_invalido' });
+    let estado;
+    try { estado = await estadoCodigo(kv, code); }
+    catch (e) { console.error('save-profile-fit estado:', e.message); return res.status(503).json({ error: 'servicio_no_disponible' }); }
+    if (estado !== 'valido') return res.status(401).json({ error: `codigo_${estado}` });
+    return null;
+  }
 
   // ── POST: guardar perfil ─────────────────────────────────────
   if (req.method === 'POST') {
     let body;
     try {
+      if (typeof req.body === 'string' && req.body.length > MAX_BODY) return res.status(413).json({ error: 'Perfil demasiado grande' });
       body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     } catch (e) {
       return res.status(400).json({ error: 'JSON no válido' });
     }
-    const { code, perfil } = body;
-    if (!code || typeof code !== 'string') return res.status(400).json({ error: 'Código requerido' });
+    const { perfil } = body;
+    const code = normalizarCodigo(body.code);
+    if (!code) return res.status(400).json({ error: 'Código requerido' });
     if (!perfil || typeof perfil !== 'object' || Array.isArray(perfil)) {
       return res.status(400).json({ error: 'Perfil requerido' });
     }
-    const rechazo = validarEdad(perfil) || validarRangos(perfil);
-    if (rechazo) {
-      return res.status(rechazo.status).json({ error: rechazo.error, mensaje: rechazo.mensaje });
-    }
-    const cleanCode = code.trim().toUpperCase();
+    if (JSON.stringify(perfil).length > MAX_BODY) return res.status(413).json({ error: 'Perfil demasiado grande' });
+
+    const { perfil: limpio, rechazo } = perfilSeguro(perfil);
+    if (rechazo) return res.status(rechazo.status).json({ error: rechazo.error, mensaje: rechazo.mensaje });
+
+    // Demo: el perfil se queda solo en el navegador de cada visitante (no se comparte).
+    if (esDemo(code)) return res.status(200).json({ ok: true, guardado: false });
+
+    if (await rechazarCodigo(code)) return;
     try {
-      const r = await fetch(`${kvUrl}/set/profile:${cleanCode}`, {
-        method: 'POST',
-        headers: kvHeaders,
-        body: JSON.stringify(perfil)
+      const r = await fetch(`${kv.url}/set/${encodeURIComponent(`profile:${code}`)}`, {
+        method: 'POST', headers: kv.headers, body: JSON.stringify(limpio), signal: AbortSignal.timeout(5000),
       });
       if (!r.ok) return res.status(502).json({ error: 'No se pudo guardar el perfil' });
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, guardado: true });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      console.error('save-profile-fit set:', err.message);
+      return res.status(500).json({ error: 'error_interno' });
     }
   }
 
   // ── GET: leer perfil ─────────────────────────────────────────
   if (req.method === 'GET') {
     const urlObj = new URL(req.url, 'https://fit.menarguez-ia.com');
-    const codeParam = urlObj.searchParams.get('code') || '';
-    if (!codeParam) return res.status(400).json({ error: 'Código requerido' });
-    const cleanParam = codeParam.trim().toUpperCase();
+    const code = normalizarCodigo(urlObj.searchParams.get('code'));
+    if (!code) return res.status(400).json({ error: 'Código requerido' });
+    if (esDemo(code)) return res.status(200).json({ perfil: null });
+    if (await rechazarCodigo(code)) return;
     try {
-      const resp = await fetch(`${kvUrl}/get/profile:${cleanParam}`, { headers: kvHeaders });
-      const data = await resp.json();
-      if (!data.result) return res.status(200).json({ perfil: null });
-      let raw = data.result;
-      if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch(e) {} }
-      return res.status(200).json({ perfil: raw });
+      const perfil = await kvGetJson(kv, `profile:${code}`);
+      return res.status(200).json({ perfil: perfil || null });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      console.error('save-profile-fit get:', err.message);
+      return res.status(500).json({ error: 'error_interno' });
     }
   }
 
