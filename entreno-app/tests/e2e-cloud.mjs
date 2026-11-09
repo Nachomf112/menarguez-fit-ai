@@ -2,18 +2,12 @@
 // Uso: npm run build && node tests/e2e-cloud.mjs [carpeta_capturas]
 import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');
-import { createServer } from 'node:http';
-import { readFileSync, mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { serve } from './serve.mjs';
 
 const SHOTS = process.argv[2] || 'tests/shots';
 mkdirSync(SHOTS, { recursive: true });
-const html = readFileSync('dist/entreno/index.html');
-const server = createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); }).listen(4318);
-const UMD = {
-  'react.production.min.js': resolve('node_modules/react/umd/react.production.min.js'),
-  'react-dom.production.min.js': resolve('node_modules/react-dom/umd/react-dom.production.min.js'),
-};
+const server = serve(4318);
 const SB = 'https://yosanpfxozkgspeftlgb.supabase.co';
 const PUBLISHABLE = 'sb_publishable_PlnuoNIDMOsIKvazXL3szw_ndETA4Ft';
 
@@ -109,12 +103,13 @@ const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true });
 const page = await ctx.newPage();
 const errors = [];
+const terceros = [];
+await ctx.addInitScript(() => { window.__csp = []; document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(`${e.violatedDirective} ${e.blockedURI}`)); });
 page.on('pageerror', (e) => errors.push(e.message));
-page.on('console', (m) => { if (m.type() === 'error' && !/fonts|ERR_|net::|status of 4\d\d/.test(m.text())) errors.push(m.text()); });
+page.on('console', (m) => { if (m.type() === 'error' && !/ERR_|net::|status of 4\d\d/.test(m.text())) errors.push(m.text()); });
 await ctx.route('**/*', (route) => {
   const url = route.request().url();
-  const f = Object.keys(UMD).find((k) => url.endsWith(k));
-  if (f) return route.fulfill({ path: UMD[f], contentType: 'application/javascript' });
+  if (!url.startsWith('http://localhost') && !url.startsWith('https://yosanpfxozkgspeftlgb.supabase.co')) terceros.push(url);
   if (url.startsWith(SB)) return fakeSupabase(route);
   if (url.startsWith('http://localhost:4318')) return route.continue();
   return route.abort();
@@ -250,6 +245,11 @@ await shot('c09-escritorio');
 const o = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 check('sin scroll horizontal en escritorio', o <= 1);
 
+const csp = await page.evaluate(() => window.__csp);
+check('la política de seguridad (CSP) no bloquea nada de la app', csp.length === 0, csp.join(' | '));
+check('no se cargan recursos de terceros', terceros.length === 0, terceros.slice(0, 3).join(' | '));
+const cab = await page.evaluate(async () => { const r = await fetch('/'); return { csp: r.headers.get('content-security-policy') || '', xfo: r.headers.get('x-frame-options') }; });
+check('cabeceras de seguridad presentes', cab.csp.includes("default-src 'none'") && cab.xfo === 'DENY');
 check('sin errores de JavaScript', errors.length === 0, errors.join(' | '));
 await browser.close();
 server.close();

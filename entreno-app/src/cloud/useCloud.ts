@@ -34,9 +34,9 @@ export interface CloudApi {
   aviso: string | null;
   decision: 'otra_cuenta' | 'locales' | null;
   factores: Factor[];
-  signUp(email: string, password: string): Promise<Result>;
-  signIn(email: string, password: string): Promise<Result>;
-  sendReset(email: string): Promise<Result>;
+  signUp(email: string, password: string, captchaToken?: string): Promise<Result>;
+  signIn(email: string, password: string, captchaToken?: string): Promise<Result>;
+  sendReset(email: string, captchaToken?: string): Promise<Result>;
   setNewPassword(password: string): Promise<Result>;
   changePassword(password: string): Promise<Result>;
   verifyMfa(code: string): Promise<Result>;
@@ -100,6 +100,7 @@ export function authMessage(e: { code?: string; message?: string; status?: numbe
   if (code === 'same_password') return 'La contraseña nueva debe ser distinta de la actual.';
   if (code === 'mfa_verification_failed' || m.includes('invalid totp')) return 'Código incorrecto o caducado.';
   if (code === 'reauthentication_needed' || code === 'session_not_found') return 'Por seguridad, vuelve a iniciar sesión e inténtalo de nuevo.';
+  if (code === 'captcha_failed' || m.includes('captcha')) return 'No se ha podido completar la verificación anti-robots. Vuelve a intentarlo.';
   if (code === 'signup_disabled') return 'El registro está cerrado en este momento.';
   if (m.includes('failed to fetch') || m.includes('network')) return 'No hay conexión con el servidor. Comprueba tu conexión.';
   if (m.includes('límite de 5 perfiles')) return 'Tu cuenta ya tiene 5 perfiles, que es el máximo.';
@@ -276,24 +277,24 @@ export function useCloud(state: AppState, setState: (fn: (s: AppState) => AppSta
   }, [state, phase, push]);
 
   // ── Acciones ──
-  const signUp = useCallback(async (mail: string, password: string): Promise<Result> => {
+  const signUp = useCallback(async (mail: string, password: string, captchaToken?: string): Promise<Result> => {
     const e = mail.trim().toLowerCase();
-    const { error } = await sb().auth.signUp({ email: e, password, options: { emailRedirectTo: appUrl() } });
+    const { error } = await sb().auth.signUp({ email: e, password, options: { emailRedirectTo: appUrl(), captchaToken } });
     if (error) return ko(error);
     ls.set(K_TERMS, `${e}|${CONSENT_VERSION}`);
     return ok('Si el correo es válido, recibirás un enlace para confirmar la cuenta. Ábrelo en este mismo navegador.');
   }, []);
 
-  const signIn = useCallback(async (mail: string, password: string): Promise<Result> => {
-    const { error } = await sb().auth.signInWithPassword({ email: mail.trim().toLowerCase(), password });
+  const signIn = useCallback(async (mail: string, password: string, captchaToken?: string): Promise<Result> => {
+    const { error } = await sb().auth.signInWithPassword({ email: mail.trim().toLowerCase(), password, options: { captchaToken } });
     if (error) return ko(error);
     setAviso(null);
     return ok();
   }, []);
 
-  const sendReset = useCallback(async (mail: string): Promise<Result> => {
-    const { error } = await sb().auth.resetPasswordForEmail(mail.trim().toLowerCase(), { redirectTo: `${appUrl()}?recuperar=1` });
-    if (error && (error.status === 429 || error.code?.startsWith('over_'))) return ko(error);
+  const sendReset = useCallback(async (mail: string, captchaToken?: string): Promise<Result> => {
+    const { error } = await sb().auth.resetPasswordForEmail(mail.trim().toLowerCase(), { redirectTo: `${appUrl()}?recuperar=1`, captchaToken });
+    if (error && (error.status === 429 || error.code?.startsWith('over_') || error.code === 'captcha_failed')) return ko(error);
     return ok('Si existe una cuenta con ese correo, recibirás un enlace para crear una contraseña nueva. Ábrelo en este mismo navegador.');
   }, []);
 

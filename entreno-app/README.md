@@ -46,12 +46,12 @@ node tests/e2e.mjs        # recorrido completo en Chromium (requiere Playwright)
 node tests/e2e-cloud.mjs  # cuenta y sincronización contra un Supabase simulado
 ```
 
-React 18.3.1 se carga desde cdnjs; el resto va en el propio HTML.
+React y las fuentes (Barlow, licencia SIL OFL) van dentro de la app: no se carga nada de terceros. La única excepción es Cloudflare Turnstile, y solo si se configura `TURNSTILE_SITE_KEY`.
 
 ## Despliegue en Menarguez Fit AI
 
-El resultado es un único fichero estático: `dist/entreno/index.html` → `public/entreno/index.html` del repositorio.
-Se sirve en `/entreno/` y no modifica ningún fichero existente de la app ni de la API.
+Copiar el contenido de `dist/entreno/` (index.html, app.<hash>.js, app.<hash>.css, fonts/) a `public/entreno/` del repositorio, borrando antes los archivos anteriores.
+Las cabeceras de seguridad de `/entreno` (CSP estricta, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, COOP, CORP) están en `deploy/headers.json` y se copian en la clave `headers` de `vercel.json`. Las pruebas e2e sirven la app con esas mismas cabeceras y fallan si la CSP bloquea algo o si se carga cualquier recurso de terceros.
 
 ## Cuenta y seguridad
 

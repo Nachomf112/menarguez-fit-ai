@@ -6,6 +6,13 @@
 export const SUPABASE_URL = 'https://yosanpfxozkgspeftlgb.supabase.co';
 export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_PlnuoNIDMOsIKvazXL3szw_ndETA4Ft';
 
+/**
+ * Clave PÚBLICA del widget de Cloudflare Turnstile (CAPTCHA). Vacía = sin CAPTCHA.
+ * La clave secreta va solo en Supabase → Authentication → Attack Protection, nunca aquí.
+ * Activar primero aquí (y desplegar) y después en Supabase; si se hace al revés, nadie podrá entrar.
+ */
+export const TURNSTILE_SITE_KEY = '';
+
 /** Versión de los textos de términos y consentimiento. Cambiarla obliga a aceptar de nuevo. */
 export const CONSENT_VERSION = '2026-11';
 

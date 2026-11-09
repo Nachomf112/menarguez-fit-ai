@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { CONSENT_VERSION, isEmail, passwordProblems } from '../cloud/config';
 import { useCloudApi, type Result } from '../cloud/useCloud';
+import { useCaptcha } from '../ui/Captcha';
 import { downloadText, Notice, PageTop, Seg, useApp } from '../ui/kit';
 
 const fmt = (iso: string) => new Date(iso).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -59,17 +60,21 @@ function Fuera() {
   const [pw2, setPw2] = useState('');
   const [acepto, setAcepto] = useState(false);
   const { busy, res, setRes, run } = useAction();
+  const captcha = useCaptcha();
+  // Cada token de verificación sirve una sola vez: tras cada intento se pide otro.
+  const withCaptcha = (fn: (t?: string) => Promise<Result>) => run(async () => { try { return await fn(captcha.token ?? undefined); } finally { captcha.reset(); } });
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!isEmail(mail)) { setRes({ ok: false, msg: 'Escribe un correo válido.' }); return; }
-    if (tab === 'entrar') { if (!pw) { setRes({ ok: false, msg: 'Escribe tu contraseña.' }); return; } void run(() => cloud.signIn(mail, pw)); }
+    if (!captcha.ready) { setRes({ ok: false, msg: 'Completa la verificación anti-robots.' }); return; }
+    if (tab === 'entrar') { if (!pw) { setRes({ ok: false, msg: 'Escribe tu contraseña.' }); return; } void withCaptcha((t) => cloud.signIn(mail, pw, t)); }
     if (tab === 'crear') {
       if (!pwValid(pw, pw2)) { setRes({ ok: false, msg: 'Revisa la contraseña.' }); return; }
       if (!acepto) { setRes({ ok: false, msg: 'Debes confirmar que eres mayor de 18 años y aceptar las condiciones.' }); return; }
-      void run(async () => { const r = await cloud.signUp(mail, pw); if (r.ok) { setPw(''); setPw2(''); } return r; });
+      void withCaptcha(async (t) => { const r = await cloud.signUp(mail, pw, t); if (r.ok) { setPw(''); setPw2(''); } return r; });
     }
-    if (tab === 'recuperar') void run(() => cloud.sendReset(mail));
+    if (tab === 'recuperar') void withCaptcha((t) => cloud.sendReset(mail, t));
   };
 
   return (
@@ -96,6 +101,7 @@ function Fuera() {
           </>
         )}
         {tab === 'recuperar' && <p className="small muted">Te enviaremos un enlace para crear una contraseña nueva.</p>}
+        {captcha.node}
         <div className="row">
           <button type="submit" className="btn primary" disabled={busy}>
             {busy ? 'Un momento…' : tab === 'entrar' ? 'Entrar' : tab === 'crear' ? 'Crear cuenta' : 'Enviar enlace'}
