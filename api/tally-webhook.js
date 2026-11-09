@@ -19,6 +19,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import crypto from 'node:crypto';
+import { limpiarTexto } from './_lib/texto.js';
 
 // La firma se calcula sobre el cuerpo exacto: Vercel no debe parsearlo antes.
 export const config = { api: { bodyParser: false } };
@@ -77,11 +78,11 @@ export function extractTallyFields(data) {
     }
     value = (value === null || value === undefined) ? '' : String(value).slice(0, 300);
 
-    if (label.includes('nombre')) result.nombre = value;
-    else if (label.includes('email')) result.email = value;
-    else if (label.includes('tel')) result.telefono = value;
-    else if (label.includes('conociste') || label.includes('conocis')) result.conociste = value;
-    else if (label.includes('deseas') || label.includes('conseguir') || label.includes('objetivo')) result.objetivo = value;
+    if (label.includes('nombre')) result.nombre = limpiarTexto(value, 80);
+    else if (label.includes('email')) result.email = limpiarTexto(value, 254);
+    else if (label.includes('tel')) result.telefono = limpiarTexto(value, 30);
+    else if (label.includes('conociste') || label.includes('conocis')) result.conociste = limpiarTexto(value, 120);
+    else if (label.includes('deseas') || label.includes('conseguir') || label.includes('objetivo')) result.objetivo = limpiarTexto(value, 200);
   }
   return result;
 }

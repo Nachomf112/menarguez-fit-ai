@@ -23,6 +23,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import crypto from 'node:crypto';
+import { limpiarTexto } from './_lib/texto.js';
 
 // Stripe firma el cuerpo exacto: Vercel no debe parsearlo antes.
 export const config = { api: { bodyParser: false } };
@@ -197,8 +198,8 @@ export default async function handler(req, res) {
         return res.status(200).json({ received: true, ignorado: 'otro_producto' });
       }
 
-      const nombre = session.customer_details?.name || 'Usuario';
-      const email = session.customer_details?.email || '';
+      const nombre = limpiarTexto(session.customer_details?.name, 80) || 'Usuario';
+      const email = limpiarTexto(session.customer_details?.email, 254);
       const customerId = session.customer;
       const subscriptionId = session.subscription;
 

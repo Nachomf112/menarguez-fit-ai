@@ -1344,6 +1344,14 @@ function updateCharts(users) {
   });
 }
 
+// ── ESCAPADO (todo dato de usuario se trata como texto, nunca como HTML) ──
+function esc(v) {
+  return String(v === null || v === undefined ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;');
+}
+const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+
 // ── USUARIOS ──
 function renderUsuarios(users) {
   const tbody = document.getElementById('tablaUsuarios');
@@ -1363,7 +1371,7 @@ function renderUsuarios(users) {
     const tipoBadge = tipo === 'móvil' ? 'badge-mobile' : tipo === 'tablet' ? 'badge-tablet' : 'badge-desktop';
 
     // ── ALERTA USOS (solo Free) ──
-    const usosUsados = u.usos_usados || 0;
+    const usosUsados = num(u.usos_usados);
     const usosMax = u.plan === 'pro' ? 0 : 30;
     let usosAlerta = '';
     if (u.plan === 'free' && usosMax > 0) {
@@ -1377,33 +1385,33 @@ function renderUsuarios(users) {
 
     return `<tr>
       <td>
-        <div style="font-weight:600">${u.nombre || '—'}</div>
-        <div style="font-size:11px;color:var(--muted)">${u.email || '—'}</div>
+        <div style="font-weight:600">${esc(u.nombre || '—')}</div>
+        <div style="font-size:11px;color:var(--muted)">${esc(u.email || '—')}</div>
       </td>
-      <td><span class="mono" style="color:var(--green)">${u.code || '—'}</span></td>
-      <td><span class="badge ${u.plan === 'pro' ? 'badge-pro' : u.plan === 'cancelled' ? 'badge-expired' : 'badge-free'}">${(u.plan || 'free').toUpperCase()}</span></td>
+      <td><span class="mono" style="color:var(--green)">${esc(u.code || '—')}</span></td>
+      <td><span class="badge ${u.plan === 'pro' ? 'badge-pro' : u.plan === 'cancelled' ? 'badge-expired' : 'badge-free'}">${esc(String(u.plan || 'free').toUpperCase())}</span></td>
       <td><span class="badge ${expirado ? 'badge-expired' : 'badge-active'}">${expirado ? 'Expirado' : 'Activo'}</span></td>
-      <td style="font-size:12px;color:${expirado ? 'var(--red)' : 'var(--muted)'}">${u.expira || '—'}</td>
+      <td style="font-size:12px;color:${expirado ? 'var(--red)' : 'var(--muted)'}">${esc(u.expira || '—')}</td>
       <td>
         <span class="device-icon">${tipoIcon}</span>
-        <span class="badge ${tipoBadge}" style="font-size:10px">${tipo}</span>
-        <div style="font-size:10px;color:var(--muted);margin-top:3px">${dispositivo.os || ''} · ${dispositivo.browser || ''}</div>
+        <span class="badge ${tipoBadge}" style="font-size:10px">${esc(tipo)}</span>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">${esc(dispositivo.os || '')} · ${esc(dispositivo.browser || '')}</div>
       </td>
-      <td><span class="mono" style="font-size:11px;color:var(--muted)">${dispositivo.ip || '—'}</span></td>
-      <td style="font-size:12px;color:var(--muted)">${u.fecha_registro || '—'}</td>
+      <td><span class="mono" style="font-size:11px;color:var(--muted)">${esc(dispositivo.ip || '—')}</span></td>
+      <td style="font-size:12px;color:var(--muted)">${esc(u.fecha_registro || '—')}</td>
       <td>
         <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--green)">${usosUsados}</span>
         <span style="font-size:11px;color:var(--muted)"> / ${u.plan === 'pro' ? '∞' : '30'}</span>
         ${usosAlerta}
       </td>
       <td style="font-size:12px;color:var(--muted)">
-        ${u.ubicacion ? `${u.ubicacion.ciudad}, ${u.ubicacion.pais}` : '—'}
+        ${u.ubicacion ? `${esc(u.ubicacion.ciudad)}, ${esc(u.ubicacion.pais)}` : '—'}
       </td>
       <td>
-        <button class="action-btn" onclick="resetFingerprint('${u.code}')">Reset FP</button>
-        <button class="action-btn extend" onclick="openExtender('${u.code}', '${u.expira || ''}')">📅 Extender</button>
-        <button class="action-btn" onclick="toggleActivo('${u.code}', ${u.activo})">${u.activo ? 'Desactivar' : 'Activar'}</button>
-        <button class="action-btn danger" onclick="deleteCode('${u.code}')">✕</button>
+        <button class="action-btn" data-code="${esc(u.code)}" onclick="resetFingerprint(this.dataset.code)">Reset FP</button>
+        <button class="action-btn extend" data-code="${esc(u.code)}" data-expira="${esc(u.expira || '')}" onclick="openExtender(this.dataset.code, this.dataset.expira)">📅 Extender</button>
+        <button class="action-btn" data-code="${esc(u.code)}" data-activo="${u.activo ? 'true' : 'false'}" onclick="toggleActivo(this.dataset.code, this.dataset.activo === 'true')">${u.activo ? 'Desactivar' : 'Activar'}</button>
+        <button class="action-btn danger" data-code="${esc(u.code)}" onclick="deleteCode(this.dataset.code)">✕</button>
       </td>
     </tr>`;
   }).join('');
@@ -1438,15 +1446,15 @@ function renderAccesos(accesos) {
     const tipo = a.tipo || '—';
     const tipoIcon = tipo === 'móvil' ? '📱' : tipo === 'tablet' ? '📲' : '💻';
     return `<tr>
-      <td style="font-size:12px">${a.fecha || '—'}</td>
-      <td style="font-size:12px;color:var(--muted)">${a.hora || '—'}</td>
-      <td><div style="font-weight:600;font-size:13px">${a.nombre || '—'}</div></td>
-      <td><span class="mono" style="color:var(--green);font-size:12px">${a.code || '—'}</span></td>
-      <td>${tipoIcon} ${tipo}</td>
-      <td style="font-size:12px;color:var(--muted)">${a.os || '—'}</td>
-      <td style="font-size:12px;color:var(--muted)">${a.browser || '—'}</td>
-      <td><span class="mono" style="font-size:11px;color:var(--muted)">${a.ip || '—'}</span></td>
-      <td><button class="action-btn danger" onclick="deleteAcceso(${idx})">✕</button></td>
+      <td style="font-size:12px">${esc(a.fecha || '—')}</td>
+      <td style="font-size:12px;color:var(--muted)">${esc(a.hora || '—')}</td>
+      <td><div style="font-weight:600;font-size:13px">${esc(a.nombre || '—')}</div></td>
+      <td><span class="mono" style="color:var(--green);font-size:12px">${esc(a.code || '—')}</span></td>
+      <td>${tipoIcon} ${esc(tipo)}</td>
+      <td style="font-size:12px;color:var(--muted)">${esc(a.os || '—')}</td>
+      <td style="font-size:12px;color:var(--muted)">${esc(a.browser || '—')}</td>
+      <td><span class="mono" style="font-size:11px;color:var(--muted)">${esc(a.ip || '—')}</span></td>
+      <td><button class="action-btn danger" onclick="deleteAcceso(${num(idx)})">✕</button></td>
     </tr>`;
   }).join('');
 }
@@ -1553,7 +1561,9 @@ function exportCSV() {
     u.expira || '', u.dispositivo?.tipo || '', u.dispositivo?.os || '',
     u.dispositivo?.browser || '', u.dispositivo?.ip || '', u.fecha_registro || ''
   ]);
-  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  // Comillas escapadas y sin fórmulas: un valor que empiece por = + - @ no se ejecuta en Excel
+  const celda = (v) => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+  const csv = [headers, ...rows].map(r => r.map(celda).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
   a.download = 'fitai-usuarios-' + new Date().toISOString().split('T')[0] + '.csv';
@@ -1594,15 +1604,15 @@ function openInforme() {
     limiteEl.innerHTML = '<div class="informe-empty">No hay usuarios cerca del límite.</div>';
   } else {
     limiteEl.innerHTML = enLimite.map(u => {
-      const pct = Math.min(100, Math.round(((u.usos_usados || 0) / 30) * 100));
+      const pct = Math.min(100, Math.round((num(u.usos_usados) / 30) * 100));
       const color = pct >= 100 ? 'var(--red)' : 'var(--orange)';
       return `<div class="informe-usuario-row">
         <div class="informe-usuario-info">
-          <div class="informe-usuario-name">${u.nombre || '—'}</div>
-          <div class="informe-usuario-email">${u.email || '—'} · ${u.code || ''}</div>
+          <div class="informe-usuario-name">${esc(u.nombre || '—')}</div>
+          <div class="informe-usuario-email">${esc(u.email || '—')} · ${esc(u.code || '')}</div>
         </div>
         <div class="informe-usuario-usos">
-          <span style="font-family:'DM Mono',monospace;font-size:12px;color:${color};font-weight:700">${u.usos_usados || 0} / 30 (${pct}%)</span>
+          <span style="font-family:'DM Mono',monospace;font-size:12px;color:${color};font-weight:700">${num(u.usos_usados)} / 30 (${pct}%)</span>
           <div class="informe-usos-bar">
             <div class="informe-usos-fill" style="width:${pct}%;background:${color}"></div>
           </div>
@@ -1683,8 +1693,8 @@ function exportInformeHTML() {
 ${enLimite.length === 0
   ? '<p style="color:#999">No hay usuarios cerca del límite.</p>'
   : enLimite.map(u => {
-      const pct = Math.min(100, Math.round(((u.usos_usados||0)/30)*100));
-      return `<div class="user-row"><span><strong>${u.nombre||'—'}</strong> · ${u.email||'—'} · ${u.code||''}</span><span class="user-pct">${u.usos_usados||0}/30 (${pct}%)</span></div>`;
+      const pct = Math.min(100, Math.round((num(u.usos_usados)/30)*100));
+      return `<div class="user-row"><span><strong>${esc(u.nombre||'—')}</strong> · ${esc(u.email||'—')} · ${esc(u.code||'')}</span><span class="user-pct">${num(u.usos_usados)}/30 (${pct}%)</span></div>`;
     }).join('')
 }
 
@@ -1692,7 +1702,7 @@ ${enLimite.length === 0
 <table>
   <thead><tr><th>Nombre</th><th>Email</th><th>Código</th><th>Plan</th><th>Usos</th><th>Expira</th></tr></thead>
   <tbody>
-    ${users.map(u => `<tr><td>${u.nombre||'—'}</td><td>${u.email||'—'}</td><td>${u.code||'—'}</td><td>${(u.plan||'free').toUpperCase()}</td><td>${u.usos_usados||0}/${u.plan==='pro'?'∞':'30'}</td><td>${u.expira||'—'}</td></tr>`).join('')}
+    ${users.map(u => `<tr><td>${esc(u.nombre||'—')}</td><td>${esc(u.email||'—')}</td><td>${esc(u.code||'—')}</td><td>${esc(String(u.plan||'free').toUpperCase())}</td><td>${num(u.usos_usados)}/${u.plan==='pro'?'∞':'30'}</td><td>${esc(u.expira||'—')}</td></tr>`).join('')}
   </tbody>
 </table>
 
