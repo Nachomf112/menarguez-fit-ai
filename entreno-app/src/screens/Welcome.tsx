@@ -63,7 +63,7 @@ export function Welcome() {
                   <strong>{p.profile.nombre}</strong>
                   <div className="small muted">{p.plan ? `${p.plan.sesiones.length} sesiones por semana · ${p.sesiones.length} registradas` : 'Sin plan generado'}</div>
                 </div>
-                {p.profile.demo && <span className="badge demo">Demo</span>}
+                {p.profile.demo ? <span className="badge demo">Demo</span> : cloud.phase === 'activa' ? <span className="badge ok">En tu cuenta</span> : null}
               </button>
             ))}
           </div>

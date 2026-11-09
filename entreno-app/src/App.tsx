@@ -97,7 +97,7 @@ export function App() {
             <span>Menarguez</span><b>Fit</b><small>IA</small>
           </button>
           <span className="spacer" />
-          {pd && <span className={`badge ${pd.profile.demo ? 'demo' : ''}`} title="Perfil activo">{pd.profile.demo ? 'DEMO · ' : ''}{pd.profile.nombre.replace(' (demostración)', '')}</span>}
+          {pd && <span className={`badge ${pd.profile.demo ? 'demo' : cloud.phase === 'activa' ? 'ok' : ''}`} title={pd.profile.demo ? 'Perfil de demostración: solo en este navegador' : cloud.phase === 'activa' ? 'Perfil activo: guardado en tu cuenta' : 'Perfil activo: solo en este navegador'}>{pd.profile.demo ? 'DEMO · ' : ''}{pd.profile.nombre.replace(' (demostración)', '')}</span>}
           {cloud.enabled && (() => {
             const est = !cloud.email ? { l: 'Entrar o crear cuenta', c: '' }
               : cloud.phase === 'activa' ? (cloud.status === 'error' ? { l: 'Cuenta: error de sincronización', c: 'danger' } : { l: 'Cuenta: sincronizada', c: 'ok' })

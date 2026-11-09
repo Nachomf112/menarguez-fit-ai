@@ -76,7 +76,7 @@ export function Settings() {
             <button type="button" key={p.profile.id} className="item" aria-current={p.profile.id === state.activeProfileId ? 'true' : undefined}
               onClick={() => { set((s) => ({ ...s, activeProfileId: p.profile.id })); go(p.plan ? 'inicio' : 'resumen'); }}>
               <div><strong>{p.profile.nombre}</strong><div className="small muted">{p.sesiones.length} sesiones registradas</div></div>
-              <div className="row" style={{ flexWrap: 'nowrap' }}>{p.profile.demo && <span className="badge demo">Demo</span>}{p.profile.id === state.activeProfileId && <span className="badge blue">Activo</span>}</div>
+              <div className="row" style={{ flexWrap: 'nowrap' }}>{p.profile.demo && <span className="badge demo">Demo</span>}{synced && !p.profile.demo && <span className="badge ok">En tu cuenta</span>}{cloud.email && !synced && !p.profile.demo && <span className="badge">Solo aquí</span>}{p.profile.id === state.activeProfileId && <span className="badge blue">Activo</span>}</div>
             </button>
           ))}
         </div>

@@ -131,7 +131,7 @@ export function useCloud(state: AppState, setState: (fn: (s: AppState) => AppSta
 
   const refreshFactors = useCallback(async () => {
     const { data } = await sb().auth.mfa.listFactors();
-    setFactores((data?.totp ?? []).map((f) => ({ id: f.id, nombre: f.friendly_name ?? 'App de autenticación', creado: f.created_at })));
+    setFactores((data?.totp ?? []).map((f) => ({ id: f.id, nombre: !f.friendly_name || /^App \d{4}-/.test(f.friendly_name) ? 'App de autenticación' : f.friendly_name, creado: f.created_at })));
   }, []);
 
   // ── Subida de cambios ──
@@ -430,7 +430,7 @@ export function useCloud(state: AppState, setState: (fn: (s: AppState) => AppSta
     const auth = sb().auth;
     const { data: list } = await auth.mfa.listFactors();
     for (const f of list?.all ?? []) if (f.status === 'unverified') await auth.mfa.unenroll({ factorId: f.id });
-    const { data, error } = await auth.mfa.enroll({ factorType: 'totp', friendlyName: `App ${new Date().toISOString().slice(0, 16)}` });
+    const { data, error } = await auth.mfa.enroll({ factorType: 'totp', friendlyName: `App de autenticación · ${new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}` });
     if (error || !data) return { ok: false, msg: authMessage(error) };
     return { ok: true, msg: '', factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret };
   }, []);
