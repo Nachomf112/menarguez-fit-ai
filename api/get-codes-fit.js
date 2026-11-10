@@ -1,117 +1,92 @@
 // ════════════════════════════════════════════════════════════════
-// api/get-codes-fit.js — Menarguez Fit AI Admin
+// api/get-codes-fit.js — Menarguez Fit AI Admin (v2, M8)
+// Requiere sesión de administración (Authorization: Bearer <token>).
 // ════════════════════════════════════════════════════════════════
+import { cabecerasAdmin, codigoAdmin, cuerpoJson, exigirAdmin, fechaValida, kvAdmin } from './_lib/admin.js';
+import { kvGetJson } from './_lib/codigo.js';
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-pass');
+  cabecerasAdmin(res, 'GET, POST');
+  if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
-  const adminPass = req.headers['x-admin-pass'];
-  if (!adminPass || adminPass !== process.env.ADMIN_PASSWORD) {
-    return res.status(401).json({ error: 'No autorizado' });
-  }
-
-  const kvUrl = process.env.KV_REST_API_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN;
-  const kvHeaders = {
-    Authorization: `Bearer ${kvToken}`,
-    'Content-Type': 'application/json'
-  };
+  const kv = kvAdmin();
+  if (!(await exigirAdmin(req, res, kv))) return;
+  const kvFetch = (ruta, opts = {}) => fetch(`${kv.url}/${ruta}`, { headers: kv.headers, signal: AbortSignal.timeout(5000), ...opts });
+  const claveCodigo = (c) => encodeURIComponent('code:' + c);
 
   // ── POST: acciones sobre códigos ────────────────────────────
   if (req.method === 'POST') {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-    const { action, code } = body;
+    const body = cuerpoJson(req);
+    const { action } = body;
+    const code = codigoAdmin(body.code);
+    if (!code) return res.status(400).json({ error: 'Código no válido' });
+
+    // Lee el código, aplica el cambio y lo guarda. 404 si no existe.
+    const modificar = async (cambio) => {
+      const raw = await kvGetJson(kv, 'code:' + code);
+      if (!raw) return res.status(404).json({ error: 'El código no existe' });
+      cambio(raw);
+      const r = await kvFetch(`set/${claveCodigo(code)}`, { method: 'POST', body: JSON.stringify(raw) });
+      if (!r.ok) throw new Error('Upstash SET');
+      return res.status(200).json({ ok: true });
+    };
 
     try {
       if (action === 'reset_fingerprint') {
-        const getResp = await fetch(`${kvUrl}/get/code:${code}`, { headers: kvHeaders });
-        const getData = await getResp.json();
-        let raw = getData.result;
-        if (Array.isArray(raw)) raw = raw[0];
-        if (typeof raw === 'string') raw = JSON.parse(raw);
-        if (typeof raw === 'string') raw = JSON.parse(raw);
-        raw.fingerprint = null;
-        raw.dispositivo = null;
-        await fetch(`${kvUrl}/set/code:${code}`, {
-          method: 'POST', headers: kvHeaders,
-          body: JSON.stringify(raw)
-        });
-        return res.status(200).json({ ok: true });
+        return await modificar((raw) => { raw.fingerprint = null; raw.dispositivo = null; });
       }
 
       if (action === 'toggle_activo') {
-        const getResp = await fetch(`${kvUrl}/get/code:${code}`, { headers: kvHeaders });
-        const getData = await getResp.json();
-        let raw = getData.result;
-        if (Array.isArray(raw)) raw = raw[0];
-        if (typeof raw === 'string') raw = JSON.parse(raw);
-        if (typeof raw === 'string') raw = JSON.parse(raw);
-        raw.activo = body.activo;
-        await fetch(`${kvUrl}/set/code:${code}`, {
-          method: 'POST', headers: kvHeaders,
-          body: JSON.stringify(raw)
-        });
-        return res.status(200).json({ ok: true });
+        if (typeof body.activo !== 'boolean') return res.status(400).json({ error: 'Valor no válido' });
+        return await modificar((raw) => { raw.activo = body.activo; });
       }
 
       // ── EXTEND: actualizar fecha de expiración ──────────────
       if (action === 'extend') {
-        const getResp = await fetch(`${kvUrl}/get/code:${code}`, { headers: kvHeaders });
-        const getData = await getResp.json();
-        let raw = getData.result;
-        if (Array.isArray(raw)) raw = raw[0];
-        if (typeof raw === 'string') raw = JSON.parse(raw);
-        if (typeof raw === 'string') raw = JSON.parse(raw);
-        raw.expira = body.expira;
-        raw.activo = true; // reactivar si estaba expirado
-        await fetch(`${kvUrl}/set/code:${code}`, {
-          method: 'POST', headers: kvHeaders,
-          body: JSON.stringify(raw)
+        if (!fechaValida(body.expira)) return res.status(400).json({ error: 'Fecha no válida' });
+        return await modificar((raw) => {
+          raw.expira = body.expira;
+          raw.activo = true; // reactivar si estaba expirado
         });
-        return res.status(200).json({ ok: true });
       }
 
       if (action === 'delete') {
-        await fetch(`${kvUrl}/del/code:${code}`, { method: 'POST', headers: kvHeaders });
+        await kvFetch(`del/${claveCodigo(code)}`, { method: 'POST' });
         // Al borrar el código se borra también su perfil (datos personales), para no dejar perfiles huérfanos.
-        await fetch(`${kvUrl}/del/${encodeURIComponent('profile:' + String(code).trim().toUpperCase())}`, { method: 'POST', headers: kvHeaders });
+        await kvFetch(`del/${encodeURIComponent('profile:' + code)}`, { method: 'POST' });
         return res.status(200).json({ ok: true });
       }
 
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return res.status(400).json({ error: 'Acción no válida' });
+    } catch {
+      return res.status(500).json({ error: 'No se pudo completar la acción' });
     }
   }
+
   // ── GET: stats diarias ──────────────────────────────────────
-  if (req.method === 'GET' && req.query?.stats === 'daily') {
+  if (req.query?.stats === 'daily') {
     try {
-      const resp = await fetch(`${kvUrl}/hgetall/fitai:stats:daily`, { headers: kvHeaders });
+      const resp = await kvFetch('hgetall/fitai:stats:daily');
+      if (!resp.ok) throw new Error('Upstash');
       const data = await resp.json();
       const statsDaily = data.result || {};
       return res.status(200).json({ statsDaily });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
+    } catch {
+      return res.status(500).json({ error: 'No se pudieron cargar las estadísticas' });
     }
   }
+
   // ── GET: listar todos los códigos FIT ───────────────────────
-      try {
-    const keysResp = await fetch(`${kvUrl}/keys/code:FIT-*`, { headers: kvHeaders });
+  try {
+    const keysResp = await kvFetch('keys/code:FIT-*');
+    if (!keysResp.ok) throw new Error('Upstash');
     const keysData = await keysResp.json();
     const keys = keysData.result || [];
 
     const codes = await Promise.all(keys.map(async key => {
       try {
-        const r = await fetch(`${kvUrl}/get/${key}`, { headers: kvHeaders });
-        const d = await r.json();
-        let raw = d.result;
-        if (Array.isArray(raw)) raw = raw[0];
-        if (typeof raw === 'string') raw = JSON.parse(raw);
-        if (typeof raw === 'string') raw = JSON.parse(raw);
-        if (!raw || typeof raw !== 'object') return null;
+        const raw = await kvGetJson(kv, key);
+        if (!raw) return null;
         raw.code = key.replace('code:', '');
         return raw;
       } catch { return null; }
@@ -124,8 +99,7 @@ export default async function handler(req, res) {
     });
 
     return res.status(200).json({ codes: validCodes, total: validCodes.length });
-
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
+  } catch {
+    return res.status(500).json({ error: 'No se pudieron cargar los códigos' });
   }
 }

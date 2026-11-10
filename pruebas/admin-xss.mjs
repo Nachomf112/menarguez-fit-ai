@@ -26,11 +26,14 @@ const browser = await chromium.launch();
 const page = await browser.newPage();
 const dialogs = [];
 page.on('dialog', (d) => { dialogs.push(d.message()); d.dismiss(); });
-let codesPost = null;
+let codesPost = null, caducada = false;
+const cabecerasVistas = [];
 await page.route('**/*', async (route) => {
   const u = new URL(route.request().url());
   if (u.hostname === 'cdnjs.cloudflare.com') return route.fulfill({ contentType: 'application/javascript', body: 'window.Chart = class { constructor(){} destroy(){} update(){} };' });
-  if (u.pathname === '/api/admin-auth-fit') return route.fulfill({ contentType: 'application/json', body: '{"ok":true}' });
+  if (u.pathname === '/api/admin-auth-fit') return route.fulfill({ contentType: 'application/json', body: '{"ok":true,"token":"token.ficticio"}' });
+  if (u.pathname.startsWith('/api/')) cabecerasVistas.push(route.request().headers());
+  if (caducada) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Sesión no válida o caducada"}' });
   if (u.pathname === '/api/get-codes-fit') {
     if (route.request().method() === 'POST') { codesPost = JSON.parse(route.request().postData()); return route.fulfill({ contentType: 'application/json', body: '{"ok":true}' }); }
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify(u.searchParams.get('stats') ? { statsDaily: {} } : { codes: users }) });
@@ -63,6 +66,15 @@ check('sin diálogos inesperados (alert)', dialogs.length === 0, dialogs.join(' 
 // Exportación CSV: sin fórmulas ejecutables
 const csv = await page.evaluate(() => { let out = ''; const a = document.createElement; document.createElement = function (t) { const el = a.call(document, t); if (t === 'a') el.click = () => { out = decodeURIComponent(el.href.split(',').slice(1).join(',')); }; return el; }; exportCSV(); document.createElement = a; return out; });
 check('el CSV escapa comillas', csv.includes('""'));
+
+// M8: el panel usa el token, nunca envía ni guarda la contraseña
+check('las peticiones llevan el token de sesión', cabecerasVistas.length > 0 && cabecerasVistas.every((h) => h.authorization === 'Bearer token.ficticio'));
+check('ninguna petición envía la contraseña en cabecera', cabecerasVistas.every((h) => !('x-admin-pass' in h)));
+check('la contraseña no queda guardada en el navegador', !(await page.evaluate(() => JSON.stringify({ ...sessionStorage }) + JSON.stringify({ ...localStorage }))).includes('contrasena-ficticia'));
+caducada = true;
+await page.evaluate(() => loadAll());
+await page.waitForTimeout(300);
+check('si la sesión caduca, vuelve a la pantalla de acceso', await page.locator('#loginScreen').isVisible() && (await page.locator('#loginError').innerText()).includes('caducado'));
 
 await browser.close(); server.close();
 const fail = results.filter((r) => !r).length;

@@ -1053,7 +1053,39 @@ tr:hover td { background: rgba(74,222,128,.03); }
 
 <script>
 // ── CONFIG ──
-const ADMIN_KEY = 'fitai_admin_auth';
+// Sesión de administración (M8): se guarda un token firmado que caduca, nunca la contraseña.
+const ADMIN_KEY = 'fitai_admin_sesion';
+try { sessionStorage.removeItem('fitai_admin_auth'); } catch (e) {} // versión anterior (guardaba la contraseña)
+let autoRefresh = null;
+
+/** fetch con el token de sesión. Si la sesión caduca, vuelve a la pantalla de acceso. */
+async function adminFetch(url, opts = {}) {
+  const token = sessionStorage.getItem(ADMIN_KEY);
+  if (!token) { sesionCaducada(); throw new Error('sin sesión'); }
+  const headers = Object.assign({}, opts.headers || {}, { Authorization: 'Bearer ' + token });
+  if (opts.body) headers['Content-Type'] = 'application/json';
+  const resp = await fetch(url, Object.assign({}, opts, { headers }));
+  if (resp.status === 401) { sesionCaducada(); throw new Error('sesión caducada'); }
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return resp;
+}
+
+function sesionCaducada() {
+  sessionStorage.removeItem(ADMIN_KEY);
+  if (autoRefresh) { clearInterval(autoRefresh); autoRefresh = null; }
+  document.getElementById('adminScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = '';
+  const err = document.getElementById('loginError');
+  err.style.display = 'block';
+  err.textContent = 'La sesión ha caducado. Vuelve a entrar.';
+}
+
+function entrarAlPanel() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('adminScreen').style.display = 'block';
+  loadAll();
+  if (!autoRefresh) autoRefresh = setInterval(loadAll, 300000);
+}
 let allUsuarios = [];
 let allAccesos = [];
 let chartDias, chartPlanes, chartDisp, chartUsosDia;
@@ -1126,11 +1158,9 @@ async function confirmExtender() {
     : new Date();
   base.setDate(base.getDate() + modalDiasSeleccionados);
   const nuevaExpira = base.toISOString().split('T')[0];
-  const pass = sessionStorage.getItem(ADMIN_KEY);
   try {
-    await fetch('/api/get-codes-fit', {
+    await adminFetch('/api/get-codes-fit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
       body: JSON.stringify({ action: 'extend', code: modalCurrentCode, expira: nuevaExpira })
     });
     toast(`✅ ${modalCurrentCode} extendido hasta ${nuevaExpira}`);
@@ -1158,16 +1188,15 @@ async function checkLogin() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: pass })
     });
-    const data = await resp.json();
-    if (data.ok) {
-      sessionStorage.setItem(ADMIN_KEY, pass);
-      document.getElementById('loginScreen').style.display = 'none';
-      document.getElementById('adminScreen').style.display = 'block';
-      loadAll();
-      setInterval(loadAll, 300000);
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok && data.ok && data.token) {
+      sessionStorage.setItem(ADMIN_KEY, data.token);
+      document.getElementById('adminPass').value = '';
+      err.style.display = 'none';
+      entrarAlPanel();
     } else {
       err.style.display = 'block';
-      err.textContent = 'Contraseña incorrecta.';
+      err.textContent = data.error || 'Contraseña incorrecta.';
     }
   } catch(e) {
     err.style.display = 'block';
@@ -1175,7 +1204,10 @@ async function checkLogin() {
   }
 }
 
-function logout() {
+async function logout() {
+  try {
+    await adminFetch('/api/admin-auth-fit', { method: 'POST', body: JSON.stringify({ action: 'logout' }) });
+  } catch (e) { /* aunque falle, se borra la sesión local */ }
   sessionStorage.removeItem(ADMIN_KEY);
   location.reload();
 }
@@ -1192,12 +1224,11 @@ function showTab(tab) {
 
 // ── LOAD ALL ──
 async function loadAll() {
-  const pass = sessionStorage.getItem(ADMIN_KEY);
-  if (!pass) return;
+  if (!sessionStorage.getItem(ADMIN_KEY)) return;
   try {
     const [codesResp, accessResp] = await Promise.all([
-      fetch('/api/get-codes-fit', { headers: { 'x-admin-pass': pass } }),
-      fetch('/api/get-access-fit', { headers: { 'x-admin-pass': pass } })
+      adminFetch('/api/get-codes-fit'),
+      adminFetch('/api/get-access-fit')
     ]);
     if (codesResp.ok) {
       const data = await codesResp.json();
@@ -1212,7 +1243,7 @@ async function loadAll() {
       renderAccesos(allAccesos);
     }
     // Cargar stats de usos por día
-    await loadUsosDia(pass);
+    await loadUsosDia();
     document.getElementById('lastUpdate').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-ES');
   } catch(e) {
     toast('Error cargando datos', 'error');
@@ -1220,12 +1251,9 @@ async function loadAll() {
 }
 
 // ── USOS POR DÍA (fitai:stats:daily) ──
-async function loadUsosDia(pass) {
+async function loadUsosDia() {
   try {
-    const resp = await fetch('/api/get-codes-fit?stats=daily', {
-      headers: { 'x-admin-pass': pass }
-    });
-    if (!resp.ok) return;
+    const resp = await adminFetch('/api/get-codes-fit?stats=daily');
     const data = await resp.json();
     const statsDaily = data.statsDaily || {};
     window._statsDaily = statsDaily;
@@ -1499,11 +1527,9 @@ function filterAccesos() {
 
 async function deleteAcceso(idx) {
   if (!confirm('¿Eliminar este acceso?')) return;
-  const pass = sessionStorage.getItem(ADMIN_KEY);
   try {
-    await fetch('/api/get-access-fit', {
+    await adminFetch('/api/get-access-fit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
       body: JSON.stringify({ action: 'delete', idx })
     });
     toast('Acceso eliminado ✓');
@@ -1514,11 +1540,9 @@ async function deleteAcceso(idx) {
 // ── ACCIONES ──
 async function resetFingerprint(code) {
   if (!confirm(`¿Resetear fingerprint de ${code}?`)) return;
-  const pass = sessionStorage.getItem(ADMIN_KEY);
   try {
-    await fetch('/api/get-codes-fit', {
+    await adminFetch('/api/get-codes-fit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
       body: JSON.stringify({ action: 'reset_fingerprint', code })
     });
     toast('Fingerprint reseteado ✓');
@@ -1527,11 +1551,9 @@ async function resetFingerprint(code) {
 }
 
 async function toggleActivo(code, activo) {
-  const pass = sessionStorage.getItem(ADMIN_KEY);
   try {
-    await fetch('/api/get-codes-fit', {
+    await adminFetch('/api/get-codes-fit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
       body: JSON.stringify({ action: 'toggle_activo', code, activo: !activo })
     });
     toast((activo ? 'Código desactivado' : 'Código activado') + ' ✓');
@@ -1541,11 +1563,9 @@ async function toggleActivo(code, activo) {
 
 async function deleteCode(code) {
   if (!confirm(`¿Eliminar código ${code}? Esta acción no se puede deshacer.`)) return;
-  const pass = sessionStorage.getItem(ADMIN_KEY);
   try {
-    await fetch('/api/get-codes-fit', {
+    await adminFetch('/api/get-codes-fit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-pass': pass },
       body: JSON.stringify({ action: 'delete', code })
     });
     toast('Código eliminado ✓');
@@ -1721,12 +1741,7 @@ document.getElementById('adminPass').addEventListener('keydown', e => {
   if (e.key === 'Enter') checkLogin();
 });
 
-if (sessionStorage.getItem(ADMIN_KEY)) {
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('adminScreen').style.display = 'block';
-  loadAll();
-  setInterval(loadAll, 300000);
-}
+if (sessionStorage.getItem(ADMIN_KEY)) entrarAlPanel();
 </script>
 </body>
 </html>

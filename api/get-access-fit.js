@@ -1,55 +1,37 @@
 // ════════════════════════════════════════════════════════════════
-// api/get-access-fit.js — Menarguez Fit AI Admin
+// api/get-access-fit.js — Menarguez Fit AI Admin (v2, M8)
+// Requiere sesión de administración (Authorization: Bearer <token>).
 // ════════════════════════════════════════════════════════════════
+import { cabecerasAdmin, cuerpoJson, exigirAdmin, kvAdmin } from './_lib/admin.js';
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-pass');
+  cabecerasAdmin(res, 'GET, POST');
+  if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
-  const adminPass = req.headers['x-admin-pass'];
-  if (!adminPass || adminPass !== process.env.ADMIN_PASSWORD) {
-    return res.status(401).json({ error: 'No autorizado' });
-  }
-
-  const kvUrl = process.env.KV_REST_API_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN;
-  const kvHeaders = {
-    Authorization: `Bearer ${kvToken}`,
-    'Content-Type': 'application/json'
-  };
+  const kv = kvAdmin();
+  if (!(await exigirAdmin(req, res, kv))) return;
+  const kvFetch = (ruta, opts = {}) => fetch(`${kv.url}/${ruta}`, { headers: kv.headers, signal: AbortSignal.timeout(5000), ...opts });
 
   // ── POST: eliminar acceso ────────────────────────────────────
   if (req.method === 'POST') {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-
-    if (body.action === 'delete' && typeof body.idx === 'number') {
-      try {
-        const placeholder = '__DELETED__';
-        await fetch(`${kvUrl}/lset/fitai:accesos/${body.idx}`, {
-          method: 'POST',
-          headers: kvHeaders,
-          body: JSON.stringify(placeholder)
-        });
-        await fetch(`${kvUrl}/lrem/fitai:accesos/1`, {
-          method: 'POST',
-          headers: kvHeaders,
-          body: JSON.stringify(placeholder)
-        });
-        return res.status(200).json({ ok: true });
-      } catch (err) {
-        return res.status(500).json({ error: err.message });
-      }
+    const body = cuerpoJson(req);
+    if (body.action !== 'delete' || !Number.isInteger(body.idx) || body.idx < 0 || body.idx > 199) {
+      return res.status(400).json({ error: 'Acción no válida' });
     }
-
-    return res.status(400).json({ error: 'Acción no válida' });
+    try {
+      const placeholder = '__DELETED__';
+      await kvFetch(`lset/fitai:accesos/${body.idx}`, { method: 'POST', body: JSON.stringify(placeholder) });
+      await kvFetch('lrem/fitai:accesos/1', { method: 'POST', body: JSON.stringify(placeholder) });
+      return res.status(200).json({ ok: true });
+    } catch {
+      return res.status(500).json({ error: 'No se pudo eliminar el acceso' });
+    }
   }
 
   // ── GET: listar accesos ──────────────────────────────────────
   try {
-    const resp = await fetch(`${kvUrl}/lrange/fitai:accesos/0/199`, { headers: kvHeaders });
+    const resp = await kvFetch('lrange/fitai:accesos/0/199');
+    if (!resp.ok) throw new Error('Upstash');
     const data = await resp.json();
     const raw = data.result || [];
 
@@ -63,7 +45,7 @@ export default async function handler(req, res) {
     }).filter(Boolean);
 
     return res.status(200).json({ accesos });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
+  } catch {
+    return res.status(500).json({ error: 'No se pudieron cargar los accesos' });
   }
 }
