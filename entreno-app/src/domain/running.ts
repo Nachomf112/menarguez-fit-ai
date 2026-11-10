@@ -60,12 +60,27 @@ export function targetPace(p: Profile): { ritmo: number; tiempo: number } | null
   return { ritmo: t / km, tiempo: t };
 }
 
+// ── Límites de volumen (v0.6) ─────────────────────────────────────
+// Son los mismos que aplica el validador del servidor del entrenador con IA
+// (menarguez-fit-ai: api/_lib/entreno/limites.js). Si se cambian aquí, cambiarlos allí.
+// Volumen = minutos totales de las sesiones de carrera (con calentamiento), sin contar correr-caminar.
+export const MIN_SESION_CARRERA = 20;   // para decidir cuántas salidas caben en el presupuesto
+export const MIN_RODAJE = 15;
+export const MIN_CALIDAD = 36;          // una sesión de calidad (con calentamiento) necesita al menos 36 min
+export const BASE_CALIDAD = 60;         // series, tempo, cuestas… solo con 60 min/semana o más
+/** Minutos semanales de carrera permitidos: +10 % o +15 min sobre lo que ya corres (lo que sea mayor), mínimo 40. */
+export function weeklyBudget(minutosSemana: number): number {
+  const b = Math.max(0, minutosSemana || 0);
+  return Math.max(40, Math.round(Math.max(b * 1.1, b + 15)));
+}
+
 export function runDaysFor(p: Profile): { run: number[]; strength: number[] } {
   const c = p.carrera!;
   const dias = Math.min(6, Math.max(1, Math.round(p.dias)));
   const cap = c.experiencia === 'empiezo' ? 3 : c.experiencia === 'ocasional' ? 4 : 5;
   let R = dias >= 5 ? dias - 2 : dias >= 3 ? dias - 1 : dias;
   R = Math.min(R, cap);
+  if (c.experiencia !== 'empiezo') R = Math.max(1, Math.min(R, Math.floor(weeklyBudget(c.minutosSemana) / MIN_SESION_CARRERA)));
   const S = Math.min(2, dias - R);
   const RUN: Record<number, number[]> = { 1: [5], 2: [1, 5], 3: [1, 3, 6], 4: [1, 3, 4, 6], 5: [0, 1, 3, 4, 6] };
   const run = RUN[R] ?? [];
@@ -82,21 +97,27 @@ export function runDaysFor(p: Profile): { run: number[]; strength: number[] } {
   return { run, strength };
 }
 
-// Sesiones de calidad (series, tempo) solo si ya hay base: al menos 60 min/semana de carrera
-// y, en fase de base, al menos 3 salidas. Si no, rodaje suave (casi todo el volumen, suave).
-const QUALITY: RunType[] = ['series', 'tempo'];
+// Sesiones de calidad solo si ya hay base: al menos 60 min/semana de carrera. En distancias de
+// 1500 m o más, además, en fase de base hacen falta al menos 3 salidas. Si no, rodaje suave.
+export const QUALITY: RunType[] = ['series', 'tempo', 'series_cortas', 'cuestas', 'ritmo_carrera'];
+const QUALITY_LONG: RunType[] = ['series', 'tempo'];
 function slotsFor(p: Profile, n: number, now: Date): RunType[] {
   const c = p.carrera!;
   const { fase } = phaseOf(c.fechaPrueba, now);
-  const sinCalidad = c.minutosSemana < 60 || (fase === 'base' && n <= 2);
-  return slotsBase(p, n).map((t) => (sinCalidad && QUALITY.includes(t) ? 'rodaje' : t));
+  return slotsBase(p, n, fase === 'base').map((t) => {
+    if (QUALITY.includes(t) && c.minutosSemana < BASE_CALIDAD) return 'rodaje';
+    if (QUALITY_LONG.includes(t) && fase === 'base' && n <= 2) return 'rodaje';
+    return t;
+  });
 }
-function slotsBase(p: Profile, n: number): RunType[] {
+function slotsBase(p: Profile, n: number, faseBase: boolean): RunType[] {
   const c = p.carrera!;
   if (c.experiencia === 'empiezo') return Array.from({ length: n }, () => 'correr_caminar');
   if (isShort(c.distancia)) {
-    const t: Record<number, RunType[]> = { 1: ['series_cortas'], 2: ['series_cortas', 'rodaje'], 3: ['series_cortas', 'rodaje', 'ritmo_carrera'],
-      4: ['series_cortas', 'rodaje', 'cuestas', 'ritmo_carrera'], 5: ['rodaje', 'series_cortas', 'rodaje', 'cuestas', 'ritmo_carrera'] };
+    // Como máximo 2 sesiones duras por semana: cuestas en la fase de base, ritmo de carrera después.
+    const especifico: RunType = faseBase ? 'cuestas' : 'ritmo_carrera';
+    const t: Record<number, RunType[]> = { 1: ['series_cortas'], 2: ['series_cortas', 'rodaje'], 3: ['series_cortas', 'rodaje', especifico],
+      4: ['series_cortas', 'rodaje', especifico, 'rodaje'], 5: ['rodaje', 'series_cortas', 'rodaje', especifico, 'rodaje'] };
     return t[n];
   }
   const t: Record<number, RunType[]> = { 1: ['tirada'], 2: ['series', 'tirada'], 3: ['series', 'rodaje', 'tirada'],
@@ -139,12 +160,12 @@ function session(p: Profile, tipo: RunType, idx: number, now: Date, maxMin = Inf
         nota: 'Cuando puedas correr 30 min seguidos de forma cómoda, cambia tu experiencia a "ocasional" en el perfil para pasar a sesiones específicas.' };
     }
     case 'rodaje': {
-      const m = Math.round(Math.min(minutesBase(p, 'rodaje') * taper, Math.max(20, maxMin)));
+      const m = Math.round(Math.min(minutesBase(p, 'rodaje') * taper, Math.max(MIN_RODAJE, maxMin)));
       return { tipo, minutos: m, intensidad: RPE.suave,
         bloques: [`${m} min de carrera continua suave.`, ...(isShort(c.distancia) || c.distancia === '5k' ? ['Al final, 4–6 progresivos de 80–100 m acelerando poco a poco, con vuelta caminando.'] : [])] };
     }
     case 'tirada': {
-      const m = Math.round(minutesBase(p, 'tirada') * taper);
+      const m = Math.round(Math.min(minutesBase(p, 'tirada') * taper, maxMin));
       return { tipo, minutos: m, intensidad: RPE.suave, bloques: [`${m} min continuos a ritmo suave. Si lo necesitas, intercala 1 min caminando cada 10–15 min.`],
         nota: 'La tirada larga es la sesión más larga de la semana; no la hagas el día siguiente a las series.' };
     }
@@ -165,34 +186,72 @@ function session(p: Profile, tipo: RunType, idx: number, now: Date, maxMin = Inf
         ritmo: tp ? `Ritmo de referencia estimado para tu ${RACE_LABEL[d]}: ${fmtPace(tp.ritmo)}. Las repeticiones, cerca de ese ritmo o algo más rápido.` : undefined };
     }
     case 'series_cortas': {
+      esc = escala(50);
       const d = c.distancia;
       const main = d === '400' ? (reg ? `${reps(8)} × 200 m, recuperación 3 min caminando` : `${reps(6)} × 150 m, recuperación 3 min caminando`)
         : d === '800' ? (reg ? `${reps(6)} × 400 m, recuperación 2–3 min` : `${reps(5)} × 300 m, recuperación 3 min`)
         : (reg ? `${reps(5)} × 600 m, recuperación 2 min 30 s` : `${reps(6)} × 400 m, recuperación 2 min`);
-      return { tipo, minutos: 50, intensidad: RPE.cortas, bloques: [...calent, '3 progresivos de 60–80 m.', `${main}.`, ...calma],
+      return { tipo, minutos: Math.round(Math.min(50, Math.max(30, maxMin))), intensidad: RPE.cortas, bloques: [...calent, '3 progresivos de 60–80 m.', `${main}.`, ...calma],
         ritmo: tp ? `Ritmo estimado de tu ${RACE_LABEL[d]}: ${fmtPace(tp.ritmo)}.` : undefined };
     }
     case 'cuestas':
-      return { tipo, minutos: 40, intensidad: RPE.cortas,
+      esc = escala(40);
+      return { tipo, minutos: Math.round(Math.min(40, Math.max(30, maxMin))), intensidad: RPE.cortas,
         bloques: [...calent, `${reps(8)} × 10–15 s subiendo una cuesta moderada, con vuelta caminando.`, ...calma] };
     case 'ritmo_carrera': {
+      esc = escala(45);
       const d = c.distancia;
       const main = d === '400' ? `${reps(3)} × 200 m al ritmo que quieres llevar en el 400, con 5 min de recuperación`
         : d === '800' ? `${reps(3)} × 400 m al ritmo de tu objetivo de 800, con 4 min de recuperación`
         : `${reps(3)} × 500 m al ritmo de tu objetivo de 1500, con 3 min de recuperación`;
-      return { tipo, minutos: 45, intensidad: RPE.cortas, bloques: [...calent, '3 progresivos de 80 m.', `${main}.`, ...calma] };
+      return { tipo, minutos: Math.round(Math.min(45, Math.max(30, maxMin))), intensidad: RPE.cortas, bloques: [...calent, '3 progresivos de 80 m.', `${main}.`, ...calma] };
     }
   }
+}
+
+/**
+ * Reparte el presupuesto semanal: primero la tirada larga (su parte según el número de salidas),
+ * después las sesiones de calidad (si no caben con al menos MIN_CALIDAD min, pasan a rodaje)
+ * y el resto, a partes iguales entre los rodajes. La tirada siempre es la sesión más larga.
+ */
+function budgetPlans(p: Profile, slotsIn: RunType[], now: Date): RunPlan[] {
+  const c = p.carrera!;
+  const slots = [...slotsIn];
+  const n = slots.length;
+  if (c.experiencia === 'empiezo') return slots.map((t, i) => session(p, t, i, now));
+  const V = weeklyBudget(c.minutosSemana);
+  const iT = slots.indexOf('tirada');
+  const share = n === 1 ? 1 : n === 2 ? 0.55 : n === 3 ? 0.4 : 0.33;
+  const tirada = iT >= 0 ? session(p, 'tirada', iT, now, Math.max(MIN_SESION_CARRERA, Math.round(V * share))) : null;
+  const T = tirada ? tirada.minutos : 0;
+  const techo = tirada ? T - 5 : Infinity;
+  let resto = V - T;
+  const otros = slots.map((_, i) => i).filter((i) => i !== iT);
+  let q = otros.filter((i) => QUALITY.includes(slots[i]));
+  let r = otros.length - q.length;
+  // Si las sesiones de calidad no caben, la última pasa a rodaje
+  while (q.length && Math.min(techo, Math.floor((resto - r * MIN_RODAJE) / q.length)) < MIN_CALIDAD) {
+    slots[q[q.length - 1]] = 'rodaje';
+    q = q.slice(0, -1); r++;
+  }
+  const out: RunPlan[] = new Array(n);
+  if (tirada) out[iT] = tirada;
+  if (q.length) {
+    const capQ = Math.min(techo, Math.floor((resto - r * MIN_RODAJE) / q.length));
+    for (const i of q) { out[i] = session(p, slots[i], i, now, capQ); resto -= out[i].minutos; }
+  }
+  const capR = r ? Math.min(techo, Math.floor(resto / r)) : 0;
+  otros.filter((i) => !out[i]).forEach((i) => { out[i] = session(p, slots[i], i, now, capR); });
+  return out;
 }
 
 export function runSessions(p: Profile, days: number[], now: Date): PlannedSession[] {
   const c = p.carrera!;
   const { fase, dias } = phaseOf(c.fechaPrueba, now);
-  const slots = slotsFor(p, days.length, now);
+  const plans = budgetPlans(p, slotsFor(p, days.length, now), now);
   const impact = p.limitaciones.some((l) => l === 'rodilla' || l === 'tobillo' || l === 'cadera');
-  const tiradaMin = slots.includes('tirada') ? session(p, 'tirada', 0, now).minutos : Infinity;
   return days.map((d, i) => {
-    const plan = session(p, slots[i], i, now, slots[i] === 'tirada' ? Infinity : tiradaMin - 5);
+    const plan = plans[i];
     const avisos: string[] = [];
     let min = Math.round(plan.minutos);
     if (min > p.minutos) {

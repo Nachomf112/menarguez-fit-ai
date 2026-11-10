@@ -204,6 +204,7 @@ function strengthAerobicSplit(p: Profile): { S: number; A: number } {
 }
 
 function templatesFor(p: Profile, S: number): Template[] {
+  if (S <= 0) return []; // corredores con 1–2 días: solo carrera
   if (S === 1) return [T.FB_A];
   if (S === 2) return [T.FB_A, T.FB_B];
   if (S === 3) return [T.FB_A, T.FB_B, T.FB_C];

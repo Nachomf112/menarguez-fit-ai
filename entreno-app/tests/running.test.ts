@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { blankProfile } from '../src/data/demo';
 import { generatePlan } from '../src/domain/planner';
-import { parseTime, phaseOf, riegel, targetPace } from '../src/domain/running';
+import { parseTime, phaseOf, QUALITY, riegel, targetPace, weeklyBudget } from '../src/domain/running';
 import { finishSession, startSession } from '../src/domain/session';
 import type { Profile, RunningProfile } from '../src/domain/types';
 
@@ -125,5 +125,42 @@ describe('mejoras v0.3', () => {
     const s = pl.sesiones[0];
     expect(s.ejercicios.some((e) => e.presc.series === 3)).toBe(true);
     pl.sesiones.forEach((x) => { expect(x.minutosEstimados).toBeLessThanOrEqual(45); x.ejercicios.forEach((e) => expect(e.presc.series).toBeLessThanOrEqual(3)); });
+  });
+});
+
+describe('reglas de carrera v0.6 (límites compartidos con el validador del servidor)', () => {
+  const runs = (p: Profile) => plan(p).sesiones.filter((s) => s.tipo === 'carrera');
+  const volumen = (p: Profile) => runs(p).filter((s) => s.carrera!.tipo !== 'correr_caminar').reduce((t, s) => t + s.minutosEstimados, 0);
+
+  it('quien corre con 1 o 2 días a la semana recibe plan (antes daba error)', () => {
+    for (const dias of [1, 2]) {
+      const pl = plan(runner({}, { dias }));
+      expect(pl.sesiones.length).toBe(dias);
+      expect(pl.sesiones.every((s) => s.tipo === 'carrera')).toBe(true);
+    }
+  });
+  it('el volumen semanal no supera +10 % o +15 min sobre lo que ya corres (mínimo 40)', () => {
+    for (const minutosSemana of [0, 30, 60, 90, 150, 300]) for (const dias of [2, 3, 4, 5, 6]) for (const distancia of ['400', '1500', '5k', '10k', '21k'] as const) {
+      expect(volumen(runner({ minutosSemana, distancia, experiencia: 'ocasional' }, { dias, minutos: 120 }))).toBeLessThanOrEqual(weeklyBudget(minutosSemana));
+    }
+    expect(weeklyBudget(0)).toBe(40);
+    expect(weeklyBudget(150)).toBe(165);
+  });
+  it('vuelta a correr con 0 min/semana: pocas salidas, cortas y suaves', () => {
+    const r = runs(runner({ minutosSemana: 0, experiencia: 'regular', distancia: '10k' }, { dias: 5 }));
+    expect(r.length).toBeLessThanOrEqual(2);
+    expect(r.every((s) => !QUALITY.includes(s.carrera!.tipo))).toBe(true);
+  });
+  it('distancias cortas sin base (< 60 min/semana): sin series ni cuestas', () => {
+    const r = runs(runner({ distancia: '800', experiencia: 'ocasional', minutosSemana: 30 }, { dias: 6 }));
+    expect(r.every((s) => !QUALITY.includes(s.carrera!.tipo))).toBe(true);
+  });
+  it('como máximo 2 sesiones de calidad por semana y la tirada es la más larga', () => {
+    for (const distancia of ['400', '800', '5k', '10k', '21k'] as const) {
+      const r = runs(runner({ distancia, minutosSemana: 300, fechaPrueba: '2026-12-10' }, { dias: 6, minutos: 120 }));
+      expect(r.filter((s) => QUALITY.includes(s.carrera!.tipo)).length).toBeLessThanOrEqual(2);
+      const t = r.find((s) => s.carrera!.tipo === 'tirada');
+      if (t) r.forEach((s) => expect(s.minutosEstimados).toBeLessThanOrEqual(t.minutosEstimados));
+    }
   });
 });
