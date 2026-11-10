@@ -40,7 +40,15 @@ test('guarda solo campos conocidos, con el nombre limpio y la edad recalculada',
   assert.equal(g.admin, undefined);
   assert.equal(g.extra, undefined);
   assert.notEqual(g.edad, 99);
-  assert.deepEqual(Object.keys(g).sort(), ['actividad', 'altura', 'carbObj', 'edad', 'fatObj', 'fechaNac', 'nombre', 'objKcal', 'objetivo', 'peso', 'protObj', 'sexo', 'tdee']);
+  assert.deepEqual(Object.keys(g).sort(), ['actividad', 'ajustadoAlMinimo', 'altura', 'carbObj', 'edad', 'fatObj', 'fechaNac', 'nombre', 'objKcal', 'objetivo', 'peso', 'protObj', 'sexo', 'tdee']);
+  assert.deepEqual(r.json.perfil, g);
+});
+
+test('los objetivos los calcula el servidor: se ignoran los del navegador', async () => {
+  const r = await llamar('POST', { body: { code: 'FIT-AAAA-BBBB', perfil: perfil({ objKcal: 600, protObj: 400, tdee: 9999 }) } });
+  assert.equal(r.status, 200);
+  assert.ok(r.json.perfil.objKcal >= 1200);
+  assert.notEqual(r.json.perfil.protObj, 400);
 });
 
 test('no guarda con códigos inexistentes, desactivados o caducados', async () => {
@@ -72,7 +80,6 @@ test('el perfil demo no se guarda en el servidor ni se comparte', async () => {
 test('mantiene la barrera de edad y valida los campos', async () => {
   assert.equal((await llamar('POST', { body: { code: 'FIT-AAAA-BBBB', perfil: perfil({ fechaNac: '2015-01-01' }) } })).status, 403);
   assert.equal((await llamar('POST', { body: { code: 'FIT-AAAA-BBBB', perfil: perfil({ sexo: '<script>' }) } })).status, 400);
-  assert.equal((await llamar('POST', { body: { code: 'FIT-AAAA-BBBB', perfil: perfil({ objKcal: 'mucho' }) } })).status, 400);
   assert.equal((await llamar('POST', { body: { code: 'FIT-AAAA-BBBB', perfil: perfil({ peso: 5 }) } })).status, 400);
 });
 

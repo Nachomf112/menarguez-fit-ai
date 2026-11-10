@@ -6,10 +6,13 @@
 // v3: el código debe tener formato válido y existir, estar activo y no caducado
 //     (para leer y para guardar); el perfil demo no se guarda en el servidor;
 //     solo se guardan los campos esperados, con tipo y límites.
+// v4: los objetivos (kcal, proteína, grasa, carbohidratos) los calcula el servidor
+//     (Mifflin-St Jeor, suelo calórico y proteína según objetivo: api/_lib/nutricion.js).
 // ════════════════════════════════════════════════════════════════
 
 import { esDemo, esFormatoValido, estadoCodigo, kvGetJson, normalizarCodigo } from './_lib/codigo.js';
 import { limpiarTexto } from './_lib/texto.js';
+import { calcularObjetivos } from './_lib/nutricion.js';
 
 const EDAD_MINIMA = 18;
 const EDAD_MAXIMA = 120;
@@ -70,7 +73,6 @@ export function validarRangos(perfil) {
 const SEXOS = new Set(['hombre', 'mujer']);
 const ACTIVIDADES = new Set(['sedentario', 'ligero', 'moderado', 'activo', 'muy_activo']);
 const OBJETIVOS = new Set(['adelgazar', 'musculo', 'definir', 'mantener']);
-const entero = (v, min, max) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= min && n <= max ? n : null; };
 
 /**
  * Construye el perfil que se guarda: solo campos conocidos, con tipo y límites.
@@ -95,13 +97,8 @@ export function perfilSeguro(p, hoy = new Date()) {
     actividad: p.actividad,
     objetivo: p.objetivo,
   };
-  // Objetivos calculados en el cliente (hasta que el cálculo pase al servidor): solo números en rango.
-  const rangos = { tdee: [500, 8000], objKcal: [500, 8000], protObj: [0, 500], fatObj: [0, 500], carbObj: [0, 1500] };
-  for (const [k, [min, max]] of Object.entries(rangos)) {
-    const n = entero(p[k], min, max);
-    if (n === null) return mal(k);
-    perfil[k] = n;
-  }
+  // Objetivos calculados en el servidor: se ignoran los que envíe el navegador.
+  Object.assign(perfil, calcularObjetivos(perfil));
   return { perfil };
 }
 
@@ -152,7 +149,7 @@ export default async function handler(req, res) {
     if (rechazo) return res.status(rechazo.status).json({ error: rechazo.error, mensaje: rechazo.mensaje });
 
     // Demo: el perfil se queda solo en el navegador de cada visitante (no se comparte).
-    if (esDemo(code)) return res.status(200).json({ ok: true, guardado: false });
+    if (esDemo(code)) return res.status(200).json({ ok: true, guardado: false, perfil: limpio });
 
     if (await rechazarCodigo(code)) return;
     try {
@@ -160,7 +157,7 @@ export default async function handler(req, res) {
         method: 'POST', headers: kv.headers, body: JSON.stringify(limpio), signal: AbortSignal.timeout(5000),
       });
       if (!r.ok) return res.status(502).json({ error: 'No se pudo guardar el perfil' });
-      return res.status(200).json({ ok: true, guardado: true });
+      return res.status(200).json({ ok: true, guardado: true, perfil: limpio });
     } catch (err) {
       console.error('save-profile-fit set:', err.message);
       return res.status(500).json({ error: 'error_interno' });

@@ -1484,13 +1484,50 @@ let currentUser = null;
 const $ = id => document.getElementById(id);
 const today = () => new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 
-function toast(msg) {
+function toast(msg, ms = 3000) {
   const t = document.createElement('div');
   t.className = 'toast';
   t.textContent = msg;
   $('toasts').appendChild(t);
-  setTimeout(() => t.remove(), 3000);
+  setTimeout(() => t.remove(), ms);
 }
+function calcularObjetivos({ peso, altura, edad, sexo, actividad, objetivo }) {
+  const FACTORES = { sedentario: 1.2, ligero: 1.375, moderado: 1.55, activo: 1.725, muy_activo: 1.9 };
+  const PROT_BASE = { sedentario: 1.0, ligero: 1.2, moderado: 1.4, activo: 1.6, muy_activo: 1.8 };
+  const hombre = sexo === 'hombre';
+  const bmr = 10 * peso + 6.25 * altura - 5 * edad + (hombre ? 5 : -161);
+  const tdee = Math.round(bmr * (FACTORES[actividad] || 1.2));
+
+  const imc = peso / Math.pow(altura / 100, 2);
+  const bajoPeso = imc < 18.5;
+  let ajuste = 0;
+  if (bajoPeso && (objetivo === 'adelgazar' || objetivo === 'definir')) ajuste = 0;   // nunca déficit con bajo peso
+  else if (objetivo === 'adelgazar') ajuste = -Math.min(500, Math.round(tdee * 0.20));
+  else if (objetivo === 'definir') ajuste = -Math.min(300, Math.round(tdee * 0.10));
+  else if (objetivo === 'musculo') ajuste = Math.min(300, Math.round(tdee * 0.10));
+
+  const suelo = hombre ? 1500 : 1200;
+  let objKcal = tdee + ajuste;
+  let ajustadoAlMinimo = false;
+  if (ajuste < 0 && objKcal < suelo) {
+    objKcal = Math.min(tdee, suelo);   // nunca por debajo del mínimo ni por encima del mantenimiento
+    ajustadoAlMinimo = true;
+  }
+
+  const pesoRef = Math.min(peso, 25 * Math.pow(altura / 100, 2));
+  let gkg = PROT_BASE[actividad] || 1.0;
+  if (objetivo === 'adelgazar' || objetivo === 'definir') gkg += 0.2;
+  if (objetivo === 'musculo') gkg = Math.max(gkg, 1.6);
+  gkg = Math.min(gkg, 2.0);
+  const protObj = Math.round(pesoRef * gkg);
+  const fatObj = Math.round(objKcal * 0.25 / 9);
+  const carbObj = Math.max(0, Math.round((objKcal - protObj * 4 - fatObj * 9) / 4));
+
+  if (bajoPeso && (objetivo === 'adelgazar' || objetivo === 'definir')) ajustadoAlMinimo = true;
+
+  return { tdee, objKcal, protObj, fatObj, carbObj, ajustadoAlMinimo };
+}
+
 // ── IA: el navegador envía tipo + datos; los prompts viven en el servidor ──
 function escHtml(v) {
   return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -1735,26 +1772,11 @@ async function saveProfile() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Calculando tu plan...';
 
-  // Calcular TDEE (Harris-Benedict)
-  let bmr;
-  if (sexo === 'hombre') {
-    bmr = 88.362 + (13.397 * peso) + (4.799 * altura) - (5.677 * edad);
-  } else {
-    bmr = 447.593 + (9.247 * peso) + (3.098 * altura) - (4.330 * edad);
-  }
-
-  const factores = { sedentario: 1.2, ligero: 1.375, moderado: 1.55, activo: 1.725, muy_activo: 1.9 };
-  const tdee = Math.round(bmr * factores[actividad]);
-
-  const ajustes = { adelgazar: -400, musculo: +300, definir: -200, mantener: 0 };
-  const objKcal = tdee + ajustes[objetivo];
-
-  const protObj = Math.round(peso * 2);
-  const fatObj = Math.round(objKcal * 0.25 / 9);
-  const carbObj = Math.round((objKcal - protObj * 4 - fatObj * 9) / 4);
+  // Objetivos: Mifflin-St Jeor, suelo calórico y proteína según objetivo (mismo cálculo que el servidor)
+  const objetivos = calcularObjetivos({ peso, altura, edad, sexo, actividad, objetivo });
 
   // FIX: guardamos fechaNac para recalcular edad automáticamente en el futuro
-  const nuevoPerfil = { nombre, peso, altura, fechaNac, edad, sexo, actividad, objetivo, tdee, objKcal, protObj, fatObj, carbObj };
+  let nuevoPerfil = { nombre, peso, altura, fechaNac, edad, sexo, actividad, objetivo, ...objetivos };
 
   // El servidor es la barrera definitiva: si rechaza por edad, no se guarda nada.
   try {
@@ -1773,6 +1795,10 @@ async function saveProfile() {
       toast('Revisa los datos del perfil, no se pudo guardar.');
       return;
     }
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.perfil && Number.isFinite(d.perfil.objKcal)) {
+      nuevoPerfil = { ...d.perfil, ajustadoAlMinimo: objetivos.ajustadoAlMinimo };   // el servidor manda
+    }
   } catch (e) {
     console.warn('Error guardando perfil:', e);   // sin conexión: se mantiene el perfil local
   }
@@ -1787,7 +1813,14 @@ async function saveProfile() {
   loadEjercicios();
   initDashboard();
   setScreen('dashboard');
-  toast('¡Plan calculado! Objetivo: ' + objKcal + ' kcal/día');
+  const imcPerfil = perfil.peso / Math.pow(perfil.altura / 100, 2);
+  if (perfil.ajustadoAlMinimo && imcPerfil < 18.5) {
+    toast('Objetivo: ' + perfil.objKcal + ' kcal/día. Con tu peso actual no te proponemos perder peso; si quieres cambiar tu composición corporal, consulta con un profesional sanitario.', 10000);
+  } else if (perfil.ajustadoAlMinimo) {
+    toast('Objetivo: ' + perfil.objKcal + ' kcal/día. Lo hemos ajustado al mínimo recomendado; para perder peso con seguridad, consulta con un profesional sanitario.', 9000);
+  } else {
+    toast('¡Plan calculado! Objetivo: ' + perfil.objKcal + ' kcal/día');
+  }
 }
 
 function resetProfile() {
