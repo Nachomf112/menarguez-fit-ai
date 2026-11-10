@@ -8,9 +8,10 @@
 //     solo se guardan los campos esperados, con tipo y límites.
 // v4: los objetivos (kcal, proteína, grasa, carbohidratos) los calcula el servidor
 //     (Mifflin-St Jeor, suelo calórico y proteína según objetivo: api/_lib/nutricion.js).
+// v5: exige el dispositivo vinculado al código (cabecera X-Fit-Device).
 // ════════════════════════════════════════════════════════════════
 
-import { esDemo, esFormatoValido, estadoCodigo, kvGetJson, normalizarCodigo } from './_lib/codigo.js';
+import { dispositivoDe, esDemo, esFormatoValido, estadoCodigo, kvGetJson, normalizarCodigo } from './_lib/codigo.js';
 import { limpiarTexto } from './_lib/texto.js';
 import { calcularObjetivos } from './_lib/nutricion.js';
 
@@ -103,9 +104,10 @@ export function perfilSeguro(p, hoy = new Date()) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', process.env.FIT_ALLOWED_ORIGIN || 'https://fit.menarguez-ia.com');
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Fit-Device');
   res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
@@ -122,7 +124,7 @@ export default async function handler(req, res) {
   async function rechazarCodigo(code) {
     if (!esFormatoValido(code)) return res.status(400).json({ error: 'codigo_invalido' });
     let estado;
-    try { estado = await estadoCodigo(kv, code); }
+    try { estado = await estadoCodigo(kv, code, new Date(), dispositivoDe(req)); }
     catch (e) { console.error('save-profile-fit estado:', e.message); return res.status(503).json({ error: 'servicio_no_disponible' }); }
     if (estado !== 'valido') return res.status(401).json({ error: `codigo_${estado}` });
     return null;

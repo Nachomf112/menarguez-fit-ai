@@ -1,6 +1,15 @@
 // ════════════════════════════════════════════════════════════════
 // api/validate-code.js — Menarguez Fit AI
 // ════════════════════════════════════════════════════════════════
+// v2 (C3):
+//   - El navegador envía un identificador de dispositivo aleatorio (obligatorio).
+//     Se guarda solo su huella SHA-256; la API lo exige en cada petición.
+//   - Si el código está en otro dispositivo, el error es genérico (ya no muestra
+//     sistema, navegador ni IP del dueño).
+//   - Clave de Upstash codificada, formato de código validado, errores sin detalles internos.
+// ════════════════════════════════════════════════════════════════
+
+import { comprobarDispositivo, esFormatoValido, huellaDispositivo, idDispositivoValido, kvGetJson, normalizarCodigo } from './_lib/codigo.js';
 
 function parseUserAgent(ua) {
   if (!ua) return { os: 'Desconocido', browser: 'Desconocido', tipo: 'escritorio' };
@@ -65,9 +74,11 @@ export function esPerfilMenor(p, hoy = new Date()) {
 
 export default async function handler(req, res) {
 
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', process.env.FIT_ALLOWED_ORIGIN || 'https://fit.menarguez-ia.com');
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
@@ -77,48 +88,29 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(400).json({ valid: false, error: 'JSON no válido' });
   }
-  const { code, fingerprint, userAgent } = body;
 
-  if (!code || typeof code !== 'string') {
-    return res.status(400).json({ valid: false, error: 'Código requerido' });
+  const cleanCode = normalizarCodigo(body.code);
+  if (!cleanCode) return res.status(400).json({ valid: false, error: 'Código requerido' });
+  if (!esFormatoValido(cleanCode)) return res.status(200).json({ valid: false, error: 'Código no encontrado' });
+  const dispositivo = typeof body.dispositivo === 'string' ? body.dispositivo.trim() : '';
+  if (!idDispositivoValido(dispositivo)) {
+    return res.status(400).json({ valid: false, error: 'Actualiza la página e inténtalo de nuevo.' });
   }
 
-  const cleanCode = code.trim().toUpperCase();
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'N/A';
-
   if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
     return res.status(500).json({ valid: false, error: 'Configuración incompleta' });
   }
-
-  const url = process.env.KV_REST_API_URL;
-  const token = process.env.KV_REST_API_TOKEN;
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json'
+  const kv = {
+    url: process.env.KV_REST_API_URL,
+    headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`, 'Content-Type': 'application/json' },
   };
+  const kvPost = (path, cuerpo) => fetch(`${kv.url}/${path}`, { method: 'POST', headers: kv.headers, body: cuerpo, signal: AbortSignal.timeout(5000) });
 
   try {
-    const upstashResp = await fetch(`${url}/get/code:${cleanCode}`, { headers });
-    const upstashData = await upstashResp.json();
-
-    if (!upstashData.result) {
-      return res.status(200).json({ valid: false, error: 'Código no encontrado' });
-    }
-
-    let raw = upstashData.result;
-    if (Array.isArray(raw)) raw = raw[0];
-    if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch(e) {} }
-    if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch(e) {} }
-    const codeData = (raw && typeof raw === 'object') ? raw : null;
-
-    if (!codeData) {
-      return res.status(200).json({ valid: false, error: 'Error al leer el código' });
-    }
-
-    if (!codeData.activo) {
-      return res.status(200).json({ valid: false, error: 'Código desactivado. Contacta con info@menarguez-ia.com' });
-    }
-
+    const codeData = await kvGetJson(kv, `code:${cleanCode}`);
+    if (!codeData) return res.status(200).json({ valid: false, error: 'Código no encontrado' });
+    if (!codeData.activo) return res.status(200).json({ valid: false, error: 'Código desactivado. Contacta con info@menarguez-ia.com' });
     if (codeData.expira && new Date() > new Date(codeData.expira)) {
       return res.status(200).json({ valid: false, error: 'Código expirado. Contacta con info@menarguez-ia.com' });
     }
@@ -126,88 +118,44 @@ export default async function handler(req, res) {
     const usosUsados = codeData.usos_usados || 0;
     const usosMax = codeData.usos_max || 0;
     if (usosMax > 0 && usosUsados >= usosMax) {
+      return res.status(200).json({ valid: false, error: `Has agotado tus ${usosMax} análisis. Actualiza a Pro por 4,99€/mes.`, upgrade: true });
+    }
+
+    // ── DISPOSITIVO: antes de leer ningún dato personal ──────
+    const estadoDisp = comprobarDispositivo(codeData, dispositivo);
+    if (estadoDisp === 'otro_dispositivo') {
       return res.status(200).json({
         valid: false,
-        error: `Has agotado tus ${usosMax} análisis. Actualiza a Pro por 4,99€/mes.`,
-        upgrade: true
+        error: 'Este código ya está en uso en otro dispositivo. Si has cambiado de dispositivo, escribe a info@menarguez-ia.com',
       });
     }
 
-    // ── LEER PERFIL DESDE UPSTASH ────────────────────────────
+    // ── PERFIL ───────────────────────────────────────────────
     let perfilUpstash = null;
-    try {
-      const perfilResp = await fetch(`${url}/get/profile:${cleanCode}`, { headers });
-      const perfilData = await perfilResp.json();
-      if (perfilData.result) {
-        let p = perfilData.result;
-        if (typeof p === 'string') { try { p = JSON.parse(p); } catch(e) {} }
-        if (p && typeof p === 'object') perfilUpstash = p;
-      }
-    } catch(e) {
-      console.warn('Error leyendo perfil:', e.message);
-    }
+    try { perfilUpstash = await kvGetJson(kv, `profile:${cleanCode}`); }
+    catch (e) { console.warn('Error leyendo perfil:', e.message); }
 
     // Barrera de edad: un perfil de menor no puede entrar (y no se registra el acceso).
     if (esPerfilMenor(perfilUpstash)) {
       return res.status(200).json({ valid: false, error: MSG_MENOR, menor: true });
     }
 
-    if (fingerprint) {
-      const { os, browser, tipo } = parseUserAgent(userAgent || req.headers['user-agent'] || '');
-      const now = new Date();
-      const fechaAcceso = now.toLocaleDateString('es-ES', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        timeZone: 'Europe/Madrid'
-      });
-      const horaAcceso = now.toLocaleTimeString('es-ES', {
-        hour: '2-digit', minute: '2-digit',
-        timeZone: 'Europe/Madrid'
-      });
+    // ── VINCULAR (primer acceso) Y REGISTRAR EL ACCESO ───────
+    const { os, browser, tipo } = parseUserAgent(typeof body.userAgent === 'string' ? body.userAgent : (req.headers['user-agent'] || ''));
+    const now = new Date();
+    const fechaAcceso = now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Madrid' });
+    const horaAcceso = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
 
-      const registroAcceso = JSON.stringify({
-        nombre: codeData.nombre || 'Usuario',
-        code: cleanCode,
-        fecha: fechaAcceso,
-        hora: horaAcceso,
-        tipo,
-        os,
-        browser,
-        ip
-      });
-
-      if (!codeData.fingerprint) {
-        codeData.fingerprint = fingerprint;
-        codeData.dispositivo = { os, browser, tipo, ip, fecha: fechaAcceso, hora: horaAcceso };
-
-        await fetch(`${url}/set/code:${cleanCode}`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(codeData)
-        });
-
-        await fetch(`${url}/lpush/fitai:accesos`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(registroAcceso)
-        });
-
-      } else if (codeData.fingerprint !== fingerprint) {
-        const disp = codeData.dispositivo
-          ? `${codeData.dispositivo.os} · ${codeData.dispositivo.browser} (${codeData.dispositivo.ip})`
-          : 'otro dispositivo';
-        return res.status(200).json({
-          valid: false,
-          error: `Este código está vinculado a ${disp}. Contacta con info@menarguez-ia.com`
-        });
-
-      } else {
-        await fetch(`${url}/lpush/fitai:accesos`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(registroAcceso)
-        });
-      }
+    if (estadoDisp === 'sin_vincular') {
+      codeData.fingerprint = huellaDispositivo(dispositivo);
+      codeData.dispositivo = { os, browser, tipo, ip, fecha: fechaAcceso, hora: horaAcceso };
+      await kvPost(`set/${encodeURIComponent(`code:${cleanCode}`)}`, JSON.stringify(codeData));
     }
+    try {
+      await kvPost('lpush/fitai:accesos', JSON.stringify(JSON.stringify({
+        nombre: codeData.nombre || 'Usuario', code: cleanCode, fecha: fechaAcceso, hora: horaAcceso, tipo, os, browser, ip,
+      })));
+    } catch (e) { console.warn('Error registrando acceso:', e.message); }
 
     return res.status(200).json({
       valid: true,
@@ -217,11 +165,11 @@ export default async function handler(req, res) {
       usos_usados: usosUsados,
       usos_max: usosMax,
       expira: codeData.expira || null,
-      perfil: perfilUpstash  // null si no tiene perfil aún
+      perfil: perfilUpstash,
     });
 
   } catch (err) {
     console.error('validate-code error:', err);
-    return res.status(500).json({ valid: false, error: 'Error del servidor: ' + err.message });
+    return res.status(500).json({ valid: false, error: 'Error del servidor. Inténtalo de nuevo en un momento.' });
   }
 }

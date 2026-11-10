@@ -2,6 +2,10 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import handler from '../api/analyze.js';
+import { huellaDispositivo } from '../api/_lib/codigo.js';
+
+const DISP = '11111111-2222-4333-8444-555555555555';
+const FP = huellaDispositivo(DISP);
 
 process.env.KV_REST_API_URL = 'https://kv.test';
 process.env.KV_REST_API_TOKEN = 'token-ficticio';
@@ -10,8 +14,8 @@ const futuro = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 let db, ia, enviado;
 beforeEach(() => {
   db = new Map([
-    ['code:FIT-AAAA-BBBB', JSON.stringify({ activo: true, expira: futuro, plan: 'free', usos_usados: 0 })],
-    ['code:FIT-LLEN-0000', JSON.stringify({ activo: true, expira: futuro, plan: 'free', usos_usados: 30 })],
+    ['code:FIT-AAAA-BBBB', JSON.stringify({ activo: true, expira: futuro, plan: 'free', usos_usados: 0, fingerprint: FP })],
+    ['code:FIT-LLEN-0000', JSON.stringify({ activo: true, expira: futuro, plan: 'free', usos_usados: 30, fingerprint: FP })],
   ]);
   ia = { status: 200, texto: '{"nombre":"Tortilla","kcal":350,"proteina":20,"carbos":15,"grasa":22,"porcion":"1 ración"}' };
   enviado = null;
@@ -32,7 +36,7 @@ globalThis.fetch = async (url, opts = {}) => {
 const llamar = async (body, headers = {}) => {
   let status = 0, json = null;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(j) { json = j; return this; }, end() { return this; } };
-  await handler({ method: 'POST', body, headers: { 'x-forwarded-for': '1.2.3.4', ...headers } }, res);
+  await handler({ method: 'POST', body, headers: { 'x-forwarded-for': '1.2.3.4', 'x-fit-device': DISP, ...headers } }, res);
   return { status, json };
 };
 const usos = (c) => JSON.parse(db.get(`code:${c}`)).usos_usados;
@@ -119,4 +123,13 @@ test('bloquea a menores y mantiene el límite de la demo', async () => {
 test('ubicación con cabeceras de Vercel, sin llamar a ipapi.co', async () => {
   await llamar({ userCode: 'FIT-AAAA-BBBB', tipo: 'comida', datos: { texto: 'pan' } }, { 'x-vercel-ip-country': 'ES', 'x-vercel-ip-city': 'Madrid' });
   assert.equal(JSON.parse(db.get('code:FIT-AAAA-BBBB')).ubicacion.ciudad, 'Madrid');
+});
+
+test('C3: conocer el código no basta; hace falta el dispositivo vinculado', async () => {
+  const r = await llamar({ userCode: 'FIT-AAAA-BBBB', tipo: 'comida', datos: { texto: 'pan' } }, { 'x-fit-device': '99999999-2222-4333-8444-555555555555' });
+  assert.equal(r.status, 401);
+  assert.equal(r.json.error, 'codigo_otro_dispositivo');
+  assert.equal((await llamar({ userCode: 'FIT-AAAA-BBBB', tipo: 'comida', datos: { texto: 'pan' } }, { 'x-fit-device': '' })).status, 401);
+  assert.equal(enviado, null);
+  assert.equal(usos('FIT-AAAA-BBBB'), 0);
 });

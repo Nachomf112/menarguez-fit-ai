@@ -13,7 +13,7 @@ const pedidos = [];
 await page.route('**/*', async (route) => {
   const u = new URL(route.request().url());
   if (u.pathname === '/api/analyze') {
-    const b = JSON.parse(route.request().postData()); pedidos.push(b);
+    const b = JSON.parse(route.request().postData()); b.__disp = route.request().headers()['x-fit-device']; pedidos.push(b);
     const res = { comida: { nombre: '<img src=x onerror=window.__x=1>Tortilla', kcal: 350, proteina: 20, carbos: 15, grasa: 22, porcion: '1 ración' },
       ejercicio: { actividad: 'Carrera', kcal: 300, duracion: '30 min' }, recomendacion: { texto: 'Vas bien hoy, sigue así.' },
       menu: { texto: '✅ Ya registrado: tortilla\n\nResto del dia sugerido:\nCena: <img src=x onerror=window.__x=2>salmón (500 kcal)' } }[b.tipo];
@@ -43,6 +43,8 @@ check('la recomendación se muestra', (await page.locator('#iaRecomendacion').in
 check('el menú se muestra con formato', (await page.locator('#sugeridorOutput').innerHTML()).includes('<br>') && (await page.locator('#sugeridorOutput').innerText()).includes('salmón'));
 check('el texto del menú no ejecuta HTML', !(await page.evaluate(() => window.__x === 2)));
 check('el menú incluye la comida registrada en los datos', JSON.stringify(pedidos.find((p) => p.tipo === 'menu')?.datos.comidas || []).includes('desayuno'));
+check('cada petición a la IA lleva el identificador de dispositivo (C3)', pedidos.length > 0 && pedidos.every((p) => /^[A-Za-z0-9-]{32,64}$/.test(p.__disp || '')));
+check('el identificador no se genera con datos del equipo (no hay getFingerprint)', !(await page.evaluate(() => typeof window.getFingerprint === 'function')));
 check('sin errores de JavaScript', errors.length === 0, errors.join(' | '));
 check('el nombre de una comida no ejecuta HTML (M7)', !(await page.evaluate(() => window.__x === 1)));
 await browser.close(); server.close();

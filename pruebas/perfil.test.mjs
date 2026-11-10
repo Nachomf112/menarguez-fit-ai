@@ -2,6 +2,10 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import handler from '../api/save-profile-fit.js';
+import { huellaDispositivo } from '../api/_lib/codigo.js';
+
+const DISP = '11111111-2222-4333-8444-555555555555';
+const FP = huellaDispositivo(DISP);
 
 process.env.KV_REST_API_URL = 'https://kv.test';
 process.env.KV_REST_API_TOKEN = 'token-ficticio';
@@ -10,9 +14,9 @@ const futuro = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 beforeEach(() => {
   caido = false;
   db = new Map([
-    ['code:FIT-AAAA-BBBB', JSON.stringify({ activo: true, expira: futuro, plan: 'free' })],
-    ['code:FIT-OFF0-0000', JSON.stringify({ activo: false, expira: futuro })],
-    ['code:FIT-OLD0-0000', JSON.stringify({ activo: true, expira: '2020-01-01' })],
+    ['code:FIT-AAAA-BBBB', JSON.stringify({ activo: true, expira: futuro, plan: 'free', fingerprint: FP })],
+    ['code:FIT-OFF0-0000', JSON.stringify({ activo: false, expira: futuro, fingerprint: FP })],
+    ['code:FIT-OLD0-0000', JSON.stringify({ activo: true, expira: '2020-01-01', fingerprint: FP })],
   ]);
 });
 globalThis.fetch = async (url, opts = {}) => {
@@ -24,10 +28,10 @@ globalThis.fetch = async (url, opts = {}) => {
   if (op === 'set') { db.set(key, opts.body); return { ok: true, json: async () => ({ result: 'OK' }) }; }
   return { ok: false, status: 404, json: async () => ({}) };
 };
-const llamar = async (method, { body, query = '' } = {}) => {
+const llamar = async (method, { body, query = '', disp = DISP } = {}) => {
   let status = 0, json = null;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(j) { json = j; return this; }, end() { return this; } };
-  await handler({ method, body, url: `/api/save-profile-fit${query}` }, res);
+  await handler({ method, body, url: `/api/save-profile-fit${query}`, headers: disp ? { 'x-fit-device': disp } : {} }, res);
   return { status, json };
 };
 const perfil = (o = {}) => ({ nombre: 'Ana', peso: 60, altura: 165, fechaNac: '1990-05-01', edad: 99, sexo: 'mujer', actividad: 'ligero', objetivo: 'mantener', tdee: 1900, objKcal: 1900, protObj: 120, fatObj: 53, carbObj: 220, ...o });
@@ -101,4 +105,15 @@ test('si Upstash no responde, devuelve 503 sin detalles internos', async () => {
 test('rechaza cuerpos enormes', async () => {
   const r = await llamar('POST', { body: { code: 'FIT-AAAA-BBBB', perfil: perfil({ nombre: 'x'.repeat(10000) }) } });
   assert.equal(r.status, 413);
+});
+
+test('C3: sin el dispositivo vinculado no se puede leer ni guardar el perfil', async () => {
+  db.set('profile:FIT-AAAA-BBBB', JSON.stringify({ nombre: 'Ana' }));
+  for (const disp of [null, '99999999-2222-4333-8444-555555555555', 'corto']) {
+    assert.equal((await llamar('GET', { query: '?code=FIT-AAAA-BBBB', disp })).status, 401, String(disp));
+    assert.equal((await llamar('POST', { body: { code: 'FIT-AAAA-BBBB', perfil: perfil({ nombre: 'Intruso' }) }, disp })).status, 401, String(disp));
+  }
+  assert.equal(JSON.parse(db.get('profile:FIT-AAAA-BBBB')).nombre, 'Ana');
+  db.set('code:FIT-NUEV-0000', JSON.stringify({ activo: true, expira: futuro }));   // nunca se ha entrado con él
+  assert.equal((await llamar('POST', { body: { code: 'FIT-NUEV-0000', perfil: perfil() } })).json.error, 'codigo_sin_vincular');
 });

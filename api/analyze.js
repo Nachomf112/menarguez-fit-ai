@@ -9,11 +9,12 @@
 //   - La recomendación automática no gasta usos (límite diario por código).
 //   - Sin ipapi.co: ubicación aproximada con las cabeceras de Vercel.
 //   - Tiempos máximos en Upstash y Anthropic.
+//   - Exige el dispositivo vinculado al código (cabecera X-Fit-Device).
 // v4 (se mantiene): código obligatorio, activo/caducidad/límite, barrera de edad,
 //   modelo fijado en servidor, demo con límite diario por IP, stats diarias.
 // ════════════════════════════════════════════════════════════════
 
-import { esDemo, esFormatoValido, kvGetJson, normalizarCodigo } from './_lib/codigo.js';
+import { comprobarDispositivo, dispositivoDe, esDemo, esFormatoValido, kvGetJson, normalizarCodigo } from './_lib/codigo.js';
 import { TIPOS } from './_lib/prompts.js';
 
 const FREE_LIMIT = 30;   // análisis totales plan Free
@@ -62,7 +63,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Fit-Device');
   res.setHeader('Cache-Control', 'no-store');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -128,6 +129,10 @@ export default async function handler(req, res) {
       if (!codeData.activo) return res.status(401).json({ error: 'codigo_desactivado', message: 'Código desactivado. Contacta con info@menarguez-ia.com' });
       if (codeData.expira && new Date() > new Date(codeData.expira)) {
         return res.status(401).json({ error: 'codigo_expirado', message: 'Código expirado. Contacta con info@menarguez-ia.com' });
+      }
+      const disp = comprobarDispositivo(codeData, dispositivoDe(req));
+      if (disp !== 'ok') {
+        return res.status(401).json({ error: `codigo_${disp}`, message: 'Vuelve a entrar con tu código.' });
       }
 
       if (tipo.consume) {

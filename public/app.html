@@ -1535,7 +1535,7 @@ function escHtml(v) {
 async function llamarIA(tipo, datos) {
   const resp = await fetch(API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: cabecerasApi(),
     body: JSON.stringify({ userCode: currentUser ? currentUser.code : '', tipo, datos })
   });
   const data = await resp.json().catch(() => ({}));
@@ -1555,7 +1555,7 @@ async function llamarIA(tipo, datos) {
 function avisarErrorIA(e) {
   if (e.codigo === 'limite_alcanzado') { showUpgradeModal(); return true; }
   if (e.codigo === 'edad_minima') { bloquearMenor(); return true; }
-  if (/^codigo_/.test(e.codigo || '')) { toast('Tu código ya no es válido. Vuelve a entrar.'); return true; }
+  if (/^codigo_/.test(e.codigo || '')) { sesionInvalida(e.mensaje); return true; }
   toast(e.mensaje || 'Error al analizar. Inténtalo de nuevo.');
   return true;
 }
@@ -1641,7 +1641,7 @@ async function login() {
     const resp = await fetch('/api/validate-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, fingerprint: getFingerprint(), userAgent: navigator.userAgent })
+      body: JSON.stringify({ code, dispositivo: getDeviceId(), userAgent: navigator.userAgent })
     });
     const data = await resp.json();
     if (!data.valid) {
@@ -1663,24 +1663,30 @@ async function login() {
   }
 }
 
-function getFingerprint() {
-  const data = [
-    navigator.userAgent,
-    screen.width + 'x' + screen.height,
-    screen.colorDepth,
-    navigator.language,
-    navigator.platform,
-    Intl.DateTimeFormat().resolvedOptions().timeZone,
-    navigator.hardwareConcurrency || '',
-    navigator.cookieEnabled
-  ].join('|');
-  let hash = 0;
-  for (let i = 0; i < data.length; i++) {
-    const char = data.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
+// Identificador aleatorio de este navegador (vincula el código a este dispositivo).
+// No se calcula a partir de datos del equipo: es un número al azar guardado aquí.
+function getDeviceId() {
+  let id = null;
+  try { id = localStorage.getItem('fitai_device'); } catch (e) { /* sin almacenamiento */ }
+  if (!id || !/^[A-Za-z0-9-]{32,64}$/.test(id)) {
+    if (window.crypto && crypto.randomUUID) id = crypto.randomUUID();
+    else { const b = new Uint8Array(16); crypto.getRandomValues(b); id = Array.from(b, x => x.toString(16).padStart(2, '0')).join(''); }
+    try { localStorage.setItem('fitai_device', id); } catch (e) { /* sin almacenamiento */ }
   }
-  return Math.abs(hash).toString(16).padStart(8, '0');
+  return id;
+}
+const cabecerasApi = () => ({ 'Content-Type': 'application/json', 'X-Fit-Device': getDeviceId() });
+
+// La sesión ya no es válida (código caducado, desactivado o usado en otro dispositivo): volver al login.
+function sesionInvalida(msg) {
+  try { localStorage.removeItem('fitai_user'); } catch (e) { /* sin almacenamiento */ }
+  currentUser = null;
+  perfil = null;
+  setScreen('login');
+  const err = $('loginError');
+  if (err) { err.textContent = msg || 'Tu sesión ha caducado. Vuelve a entrar con tu código.'; err.classList.add('show'); }
+  const btn = $('loginBtn');
+  if (btn) { btn.disabled = false; btn.textContent = 'Acceder →'; }
 }
 
 // ── PROFILE ──
@@ -1782,11 +1788,15 @@ async function saveProfile() {
   try {
     const r = await fetch('/api/save-profile-fit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: cabecerasApi(),
       body: JSON.stringify({ code: currentUser ? currentUser.code : '', perfil: nuevoPerfil })
     });
     if (r.status === 403) {
       bloquearMenor();
+      return;
+    }
+    if (r.status === 401) {
+      sesionInvalida('Tu sesión ha caducado. Vuelve a entrar con tu código.');
       return;
     }
     if (r.status === 400) {
@@ -2435,11 +2445,33 @@ if (codeFromUrl && $('fitCode')) {
   // FIX: restaurar sesión automáticamente si existe en localStorage
   const savedUser = localStorage.getItem('fitai_user');
   if (savedUser) {
-    currentUser = JSON.parse(savedUser);
-    fetch('/api/save-profile-fit?code=' + encodeURIComponent(currentUser.code))
-      .then(r => r.json())
-      .then(d => checkProfile(d.perfil || null))
-      .catch(() => checkProfile(null));
+    try { currentUser = JSON.parse(savedUser); } catch (e) { currentUser = null; }
+    const esDemoGuardado = currentUser && (currentUser.code === 'DEMO-2026' || currentUser.code === 'FIT-DEMO');
+    if (!currentUser || !currentUser.code) {
+      sesionInvalida('');
+    } else if (esDemoGuardado) {
+      checkProfile(null);
+    } else {
+      // Se revalida el código en cada apertura (caducado, desactivado u otro dispositivo → login)
+      fetch('/api/validate-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: currentUser.code, dispositivo: getDeviceId(), userAgent: navigator.userAgent })
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (!d.valid) {
+            if (d.menor) { bloquearMenor(); return; }
+            sesionInvalida(d.error);
+            return;
+          }
+          currentUser = d;
+          localStorage.setItem('fitai_user', JSON.stringify(currentUser));
+          updateUsageBanner();
+          checkProfile(d.perfil || null);
+        })
+        .catch(() => checkProfile(null));   // sin conexión: se sigue con los datos de este navegador
+    }
   }
 
   // Limitar fecha máxima en el campo fecha nacimiento a hoy
