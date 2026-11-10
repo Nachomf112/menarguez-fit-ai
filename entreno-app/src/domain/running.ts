@@ -69,11 +69,29 @@ export function runDaysFor(p: Profile): { run: number[]; strength: number[] } {
   const S = Math.min(2, dias - R);
   const RUN: Record<number, number[]> = { 1: [5], 2: [1, 5], 3: [1, 3, 6], 4: [1, 3, 4, 6], 5: [0, 1, 3, 4, 6] };
   const run = RUN[R] ?? [];
-  const strength = [0, 3, 2, 4, 5].filter((d) => !run.includes(d)).slice(0, S).sort((a, b) => a - b);
+  // Fuerza en los días más alejados de la carrera (evita fuerza el día antes o después de correr)
+  const dist = (d: number) => Math.min(...run.map((r) => Math.min(Math.abs(d - r), 7 - Math.abs(d - r))), 7);
+  const pref = [0, 3, 2, 4, 5, 6];
+  const strength: number[] = [];
+  for (const d of pref.filter((x) => !run.includes(x)).sort((a, b) => dist(b) - dist(a) || pref.indexOf(a) - pref.indexOf(b))) {
+    if (strength.length >= S) break;
+    if (strength.some((x) => Math.abs(x - d) <= 1)) continue;   // dos días de fuerza, no seguidos
+    strength.push(d);
+  }
+  strength.sort((a, b) => a - b);
   return { run, strength };
 }
 
-function slotsFor(p: Profile, n: number): RunType[] {
+// Sesiones de calidad (series, tempo) solo si ya hay base: al menos 60 min/semana de carrera
+// y, en fase de base, al menos 3 salidas. Si no, rodaje suave (casi todo el volumen, suave).
+const QUALITY: RunType[] = ['series', 'tempo'];
+function slotsFor(p: Profile, n: number, now: Date): RunType[] {
+  const c = p.carrera!;
+  const { fase } = phaseOf(c.fechaPrueba, now);
+  const sinCalidad = c.minutosSemana < 60 || (fase === 'base' && n <= 2);
+  return slotsBase(p, n).map((t) => (sinCalidad && QUALITY.includes(t) ? 'rodaje' : t));
+}
+function slotsBase(p: Profile, n: number): RunType[] {
   const c = p.carrera!;
   if (c.experiencia === 'empiezo') return Array.from({ length: n }, () => 'correr_caminar');
   if (isShort(c.distancia)) {
@@ -100,7 +118,7 @@ function minutesBase(p: Profile, tipo: RunType): number {
   return Math.round(Math.min(table[c.distancia].rodaje, Math.max(20, semana * 0.3 + 10)));
 }
 
-function session(p: Profile, tipo: RunType, idx: number, now: Date): RunPlan {
+function session(p: Profile, tipo: RunType, idx: number, now: Date, maxMin = Infinity): RunPlan {
   const c = p.carrera!;
   const reg = c.experiencia === 'regular';
   const { fase } = phaseOf(c.fechaPrueba, now);
@@ -108,7 +126,10 @@ function session(p: Profile, tipo: RunType, idx: number, now: Date): RunPlan {
   const tp = targetPace(p);
   const calent = ['10–15 min de trote suave.', 'Movilidad dinámica: balanceos de pierna, skipping y talones al glúteo, 2 × 20 m de cada.'];
   const calma = ['5–10 min de trote o caminata suave.'];
-  const reps = (n: number) => Math.max(2, Math.round(n * (taper < 1 ? 0.6 : 1)));
+  // escala < 1 cuando la sesión de calidad debe quedar más corta que la tirada larga
+  const escala = (base: number) => (base > maxMin ? Math.max(0.5, (maxMin - 25) / (base - 25)) : 1);
+  let esc = 1;
+  const reps = (n: number) => Math.max(2, Math.round(n * (taper < 1 ? 0.6 : 1) * esc));
   switch (tipo) {
     case 'correr_caminar': {
       const sem = c.minutosSemana;
@@ -118,7 +139,7 @@ function session(p: Profile, tipo: RunType, idx: number, now: Date): RunPlan {
         nota: 'Cuando puedas correr 30 min seguidos de forma cómoda, cambia tu experiencia a "ocasional" en el perfil para pasar a sesiones específicas.' };
     }
     case 'rodaje': {
-      const m = Math.round(minutesBase(p, 'rodaje') * taper);
+      const m = Math.round(Math.min(minutesBase(p, 'rodaje') * taper, Math.max(20, maxMin)));
       return { tipo, minutos: m, intensidad: RPE.suave,
         bloques: [`${m} min de carrera continua suave.`, ...(isShort(c.distancia) || c.distancia === '5k' ? ['Al final, 4–6 progresivos de 80–100 m acelerando poco a poco, con vuelta caminando.'] : [])] };
     }
@@ -128,17 +149,19 @@ function session(p: Profile, tipo: RunType, idx: number, now: Date): RunPlan {
         nota: 'La tirada larga es la sesión más larga de la semana; no la hagas el día siguiente a las series.' };
     }
     case 'tempo': {
-      const main = reg ? `${Math.round(22 * taper)} min continuos` : `2 × ${Math.round(8 * taper)} min con 3 min de trote suave entre bloques`;
-      return { tipo, minutos: 15 + (reg ? 22 : 19) * taper + 10, intensidad: RPE.tempo,
+      esc = escala(15 + (reg ? 22 : 19) * taper + 10);
+      const main = reg ? `${Math.round(22 * taper * esc)} min continuos` : `2 × ${Math.round(8 * taper * esc)} min con 3 min de trote suave entre bloques`;
+      return { tipo, minutos: Math.round(15 + (reg ? 22 : 19) * taper * esc + 10), intensidad: RPE.tempo,
         bloques: [...calent, `${main}.`, ...calma], ritmo: tp ? `Orientativo: algo más lento que tu ritmo estimado de ${c.distancia === '21k' ? 'media maratón' : '10 km'}.` : undefined };
     }
     case 'series': {
+      esc = escala(45);
       const d = c.distancia;
       const base = fase === 'base' && !reg ? `${reps(8)} × 1 min alegre + 1 min suave (fartlek)`
         : d === '5k' ? (reg ? `${reps(6)} × 800 m con 2 min de trote` : `${reps(6)} × 400 m con 2 min de trote`)
         : d === '10k' ? (reg ? `${reps(5)} × 1000 m con 2 min de trote` : `${reps(5)} × 800 m con 2 min de trote`)
         : (reg ? `${reps(3)} × 2000 m con 3 min de trote` : `${reps(4)} × 1000 m con 2 min de trote`);
-      return { tipo, minutos: 45, intensidad: RPE.series, bloques: [...calent, '3–4 progresivos de 80 m.', `${base}.`, ...calma],
+      return { tipo, minutos: Math.round(Math.min(45, Math.max(30, 25 + 20 * esc))), intensidad: RPE.series, bloques: [...calent, '3–4 progresivos de 80 m.', `${base}.`, ...calma],
         ritmo: tp ? `Ritmo de referencia estimado para tu ${RACE_LABEL[d]}: ${fmtPace(tp.ritmo)}. Las repeticiones, cerca de ese ritmo o algo más rápido.` : undefined };
     }
     case 'series_cortas': {
@@ -165,10 +188,11 @@ function session(p: Profile, tipo: RunType, idx: number, now: Date): RunPlan {
 export function runSessions(p: Profile, days: number[], now: Date): PlannedSession[] {
   const c = p.carrera!;
   const { fase, dias } = phaseOf(c.fechaPrueba, now);
-  const slots = slotsFor(p, days.length);
+  const slots = slotsFor(p, days.length, now);
   const impact = p.limitaciones.some((l) => l === 'rodilla' || l === 'tobillo' || l === 'cadera');
+  const tiradaMin = slots.includes('tirada') ? session(p, 'tirada', 0, now).minutos : Infinity;
   return days.map((d, i) => {
-    const plan = session(p, slots[i], i, now);
+    const plan = session(p, slots[i], i, now, slots[i] === 'tirada' ? Infinity : tiradaMin - 5);
     const avisos: string[] = [];
     let min = Math.round(plan.minutos);
     if (min > p.minutos) {

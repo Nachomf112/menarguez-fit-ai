@@ -85,6 +85,39 @@ describe('carrera', () => {
   });
 });
 
+describe('reglas de carrera v0.5', () => {
+  const dur = (pl: ReturnType<typeof plan>, tipo: string) => pl.sesiones.find((s) => s.carrera?.tipo === tipo)?.minutosEstimados ?? 0;
+  it('caso real: 3 días, 2 de carrera en fase de base → rodaje + tirada, sin series', () => {
+    const pl = plan(runner({ distancia: '10k', experiencia: 'ocasional', minutosSemana: 60 }, { dias: 3 }));
+    const tipos = pl.sesiones.filter((s) => s.carrera).map((s) => s.carrera!.tipo);
+    expect(tipos.sort()).toEqual(['rodaje', 'tirada']);
+  });
+  it('fuerza repartida: no el día antes ni después de correr cuando hay hueco', () => {
+    const pl = plan(runner({ distancia: '10k', experiencia: 'ocasional', minutosSemana: 60 }, { dias: 3 }));
+    const runs = pl.sesiones.filter((s) => s.tipo === 'carrera').map((s) => s.dia);
+    const fuerza = pl.sesiones.filter((s) => s.tipo === 'fuerza').map((s) => s.dia);
+    expect(fuerza).toHaveLength(1);
+    runs.forEach((r) => expect(Math.abs(r - fuerza[0])).toBeGreaterThan(1));
+  });
+  it('la tirada larga es siempre la sesión de carrera más larga', () => {
+    for (const minutosSemana of [60, 90, 150, 240]) for (const dias of [3, 4, 5, 6]) for (const experiencia of ['ocasional', 'regular'] as const) {
+      const pl = plan(runner({ distancia: '10k', experiencia, minutosSemana, fechaPrueba: '2027-01-10' }, { dias, minutos: 120 }));
+      const t = dur(pl, 'tirada');
+      pl.sesiones.filter((s) => s.carrera && s.carrera.tipo !== 'tirada').forEach((s) => expect(s.minutosEstimados, `${minutosSemana}/${dias}/${experiencia}/${s.carrera!.tipo}`).toBeLessThan(t));
+    }
+  });
+  it('sin base (menos de 60 min/semana) no hay series ni tempo', () => {
+    const pl = plan(runner({ distancia: '10k', experiencia: 'ocasional', minutosSemana: 40, fechaPrueba: '2026-12-20' }, { dias: 5 }));
+    const tipos = pl.sesiones.filter((s) => s.carrera).map((s) => s.carrera!.tipo);
+    expect(tipos).not.toContain('series');
+    expect(tipos).not.toContain('tempo');
+  });
+  it('con base y fase específica sí hay series', () => {
+    const pl = plan(runner({ distancia: '10k', experiencia: 'regular', minutosSemana: 150, fechaPrueba: '2026-12-20' }, { dias: 4 }));
+    expect(pl.sesiones.some((s) => s.carrera?.tipo === 'series')).toBe(true);
+  });
+});
+
 describe('mejoras v0.3', () => {
   it('si sobra tiempo añade series a los principales sin pasar de 3 en principiantes', () => {
     const p: Profile = { ...blankProfile('x', NOW), nombre: 'A', edad: 45, objetivo: 'hipertrofia', experiencia: 'principiante', dias: 3, minutos: 45, material: ['corporal', 'mancuernas', 'banco'] };
