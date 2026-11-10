@@ -13,6 +13,19 @@ export default async function handler(req, res) {
   if (!(await exigirAdmin(req, res, kv))) return;
   const kvFetch = (ruta, opts = {}) => fetch(`${kv.url}/${ruta}`, { headers: kv.headers, signal: AbortSignal.timeout(5000), ...opts });
   const claveCodigo = (c) => encodeURIComponent('code:' + c);
+  // Uso de /entreno (hash entreno:<código>): { primer_acceso, ultimo_acceso, aperturas } o null
+  const usoEntreno = async (c) => {
+    try {
+      const r = await kvFetch(`hgetall/${encodeURIComponent('entreno:' + c)}`);
+      if (!r.ok) return null;
+      const res = (await r.json()).result;
+      const o = {};
+      if (Array.isArray(res)) for (let i = 0; i + 1 < res.length; i += 2) o[res[i]] = res[i + 1];
+      else if (res && typeof res === 'object') Object.assign(o, res);
+      if (!o.aperturas) return null;
+      return { primer_acceso: o.primer_acceso || null, ultimo_acceso: o.ultimo_acceso || null, aperturas: Number(o.aperturas) || 0 };
+    } catch { return null; }
+  };
 
   // ── POST: acciones sobre códigos ────────────────────────────
   if (req.method === 'POST') {
@@ -54,6 +67,7 @@ export default async function handler(req, res) {
         await kvFetch(`del/${claveCodigo(code)}`, { method: 'POST' });
         // Al borrar el código se borra también su perfil (datos personales), para no dejar perfiles huérfanos.
         await kvFetch(`del/${encodeURIComponent('profile:' + code)}`, { method: 'POST' });
+        await kvFetch(`del/${encodeURIComponent('entreno:' + code)}`, { method: 'POST' });
         return res.status(200).json({ ok: true });
       }
 
@@ -88,6 +102,7 @@ export default async function handler(req, res) {
         const raw = await kvGetJson(kv, key);
         if (!raw) return null;
         raw.code = key.replace('code:', '');
+        raw.entreno = await usoEntreno(raw.code);
         return raw;
       } catch { return null; }
     }));

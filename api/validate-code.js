@@ -17,9 +17,9 @@ function parseUserAgent(ua) {
   let os = 'Desconocido';
   if (/Windows NT 10/.test(ua))     os = 'Windows 10/11';
   else if (/Windows NT 6/.test(ua)) os = 'Windows 7/8';
-  else if (/Mac OS X/.test(ua))     os = 'macOS';
+  else if (/iPhone|iPad|iPod/.test(ua)) os = 'iOS'; // antes que macOS: el iPhone también dice "Mac OS X"
   else if (/Android/.test(ua))      os = 'Android';
-  else if (/iPhone|iPad/.test(ua))  os = 'iOS';
+  else if (/Mac OS X/.test(ua))     os = 'macOS';
   else if (/Linux/.test(ua))        os = 'Linux';
 
   let browser = 'Desconocido';

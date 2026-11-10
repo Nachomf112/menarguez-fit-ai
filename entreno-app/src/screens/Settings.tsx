@@ -4,6 +4,7 @@ import { uid } from '../domain/session';
 import { emptyState, exportBackup, exportCsv, parseBackup } from '../storage/store';
 import { useCloudApi } from '../cloud/useCloud';
 import { downloadText, Notice, useApp, PageTop } from '../ui/kit';
+import { accesoRequerido, codigoGuardado, olvidarAcceso } from '../acceso/acceso';
 
 export const SOURCES: { t: string; d: string; url: string }[] = [
   { t: 'OMS (2020). Directrices sobre actividad física y hábitos sedentarios', d: '150–300 min semanales de actividad aeróbica moderada y fuerza al menos 2 días en adultos.', url: 'https://www.who.int/publications-detail-redirect/9789240015128' },
@@ -144,11 +145,19 @@ export function Settings() {
         <p className="small faint">Las reglas del planificador aplican estos criterios de forma general. No constituyen una prescripción individual.</p>
       </section>
 
+      {accesoRequerido() && (
+        <section className="card">
+          <h3>Código de acceso</h3>
+          <p className="small muted">Entras con el código <span style={{ fontFamily: 'monospace' }}>{codigoGuardado() || '—'}</span>. Tus perfiles y registros siguen en este dispositivo aunque salgas.</p>
+          <div className="row"><button type="button" className="btn sm" id="btn-salir-codigo" onClick={() => { olvidarAcceso(); location.reload(); }}>Salir del código</button></div>
+        </section>
+      )}
+
       <section className="card">
         <h3>Sobre esta versión</h3>
         <ul className="plain small muted">
           <li>Orientación general sobre ejercicio. No diagnostica ni sustituye a médicos, fisioterapeutas o dietistas-nutricionistas.</li>
-          <li>Planificación por reglas, sin IA generativa. No requiere conexión ni claves.</li>
+          <li>Planificación por reglas, sin IA generativa. Solo necesita conexión para comprobar tu código de acceso.</li>
           <li>Carrera: de 400 m a media maratón. La maratón no se incluye en esta versión.</li>
           <li>Pendiente: demostraciones visuales de los ejercicios, importación de relojes deportivos, informes HTML corporativos.</li>
           <li>Solo para mayores de 18 años.</li>

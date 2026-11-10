@@ -923,6 +923,11 @@ tr:hover td { background: rgba(74,222,128,.03); }
         <div class="stat-value" style="color:var(--yellow)" id="statConv">—</div>
         <div class="stat-sub">Free → Pro</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-label">Entreno</div>
+        <div class="stat-value" style="color:var(--blue, #60a5fa)" id="statEntreno">—</div>
+        <div class="stat-sub" id="statEntrenoSub">usan la app de entrenamiento</div>
+      </div>
     </div>
 
     <div class="charts-grid">
@@ -987,6 +992,7 @@ tr:hover td { background: rgba(74,222,128,.03); }
               <th>Registro</th>
               <th>Usos</th>
               <th>Ubicación</th>
+              <th>Entreno</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -1008,6 +1014,11 @@ tr:hover td { background: rgba(74,222,128,.03); }
             <option value="todos">Todas las fechas</option>
             <option value="hoy">Hoy</option>
             <option value="7dias">Últimos 7 días</option>
+          </select>
+          <select class="filter-select" id="filterAccesosApp" onchange="filterAccesos()">
+            <option value="todos">Todas las apps</option>
+            <option value="nutricion">Nutrición</option>
+            <option value="entreno">Entreno</option>
           </select>
           <select class="filter-select" id="filterAccesosDispositivo" onchange="filterAccesos()">
             <option value="todos">Todos los dispositivos</option>
@@ -1034,6 +1045,7 @@ tr:hover td { background: rgba(74,222,128,.03); }
               <th>Hora</th>
               <th>Nombre</th>
               <th>Código</th>
+              <th>App</th>
               <th>Dispositivo</th>
               <th>OS</th>
               <th>Navegador</th>
@@ -1319,6 +1331,11 @@ function updateStats(users) {
   document.getElementById('statPro').textContent = pro;
   document.getElementById('statExp').textContent = exp;
   document.getElementById('statConv').textContent = conv + '%';
+  const usanEntreno = users.filter(u => u.entreno && num(u.entreno.aperturas) > 0);
+  const hoyIso = new Date().toISOString().slice(0, 10);
+  document.getElementById('statEntreno').textContent = usanEntreno.length;
+  document.getElementById('statEntrenoSub').textContent =
+    usanEntreno.filter(u => String(u.entreno.ultimo_acceso || '').slice(0, 10) === hoyIso).length + ' han entrado hoy';
 }
 
 // ── CHARTS ──
@@ -1384,7 +1401,7 @@ const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 function renderUsuarios(users) {
   const tbody = document.getElementById('tablaUsuarios');
   if (!users.length) {
-    tbody.innerHTML = '<tr class="loading-row"><td colspan="11" style="color:var(--muted)">No hay usuarios registrados.</td></tr>';
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="12" style="color:var(--muted)">No hay usuarios registrados.</td></tr>';
     return;
   }
 
@@ -1435,6 +1452,7 @@ function renderUsuarios(users) {
       <td style="font-size:12px;color:var(--muted)">
         ${u.ubicacion ? `${esc(u.ubicacion.ciudad)}, ${esc(u.ubicacion.pais)}` : '—'}
       </td>
+      <td style="font-size:12px">${celdaEntreno(u.entreno)}</td>
       <td>
         <button class="action-btn" data-code="${esc(u.code)}" onclick="resetFingerprint(this.dataset.code)">Reset FP</button>
         <button class="action-btn extend" data-code="${esc(u.code)}" data-expira="${esc(u.expira || '')}" onclick="openExtender(this.dataset.code, this.dataset.expira)">📅 Extender</button>
@@ -1443,6 +1461,15 @@ function renderUsuarios(users) {
       </td>
     </tr>`;
   }).join('');
+}
+
+// Uso de /entreno: número de aperturas y último acceso (hora de Madrid)
+function celdaEntreno(e) {
+  if (!e || !num(e.aperturas)) return '<span style="color:var(--muted)">—</span>';
+  const d = new Date(e.ultimo_acceso);
+  const ultimo = isNaN(d) ? '—' : d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+  return `<span class="mono" style="color:var(--green)">${num(e.aperturas)}</span><span style="color:var(--muted)"> aperturas</span>
+    <div style="font-size:10px;color:var(--muted);margin-top:3px">último: ${esc(ultimo)}</div>`;
 }
 
 // ── FILTRO CON PLAN ──
@@ -1467,7 +1494,7 @@ function filterUsuarios() {
 function renderAccesos(accesos) {
   const tbody = document.getElementById('tablaAccesos');
   if (!accesos.length) {
-    tbody.innerHTML = '<tr class="loading-row"><td colspan="9" style="color:var(--muted)">No hay accesos registrados.</td></tr>';
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="10" style="color:var(--muted)">No hay accesos registrados.</td></tr>';
     return;
   }
   tbody.innerHTML = accesos.map((a, idx) => {
@@ -1478,6 +1505,7 @@ function renderAccesos(accesos) {
       <td style="font-size:12px;color:var(--muted)">${esc(a.hora || '—')}</td>
       <td><div style="font-weight:600;font-size:13px">${esc(a.nombre || '—')}</div></td>
       <td><span class="mono" style="color:var(--green);font-size:12px">${esc(a.code || '—')}</span></td>
+      <td><span class="badge ${a.app === 'entreno' ? 'badge-desktop' : 'badge-active'}" style="font-size:10px">${a.app === 'entreno' ? 'Entreno' : 'Nutrición'}</span></td>
       <td>${tipoIcon} ${esc(tipo)}</td>
       <td style="font-size:12px;color:var(--muted)">${esc(a.os || '—')}</td>
       <td style="font-size:12px;color:var(--muted)">${esc(a.browser || '—')}</td>
@@ -1492,6 +1520,7 @@ function filterAccesos() {
   const fecha = document.getElementById('filterAccesosFecha').value;
   const dispositivo = document.getElementById('filterAccesosDispositivo').value;
   const os = document.getElementById('filterAccesosOS').value;
+  const app = document.getElementById('filterAccesosApp').value;
 
   const hoy = new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' });
   const hace7 = new Date();
@@ -1519,7 +1548,8 @@ function filterAccesos() {
     const matchDisp = dispositivo === 'todos' || (a.tipo || '') === dispositivo;
     const matchOS = os === 'todos' || (a.os || '').includes(os);
 
-    return matchQ && matchFecha && matchDisp && matchOS;
+    const matchApp = app === 'todos' || (a.app === 'entreno' ? 'entreno' : 'nutricion') === app;
+    return matchQ && matchFecha && matchDisp && matchOS && matchApp;
   });
 
   renderAccesos(filtered);
@@ -1575,11 +1605,12 @@ async function deleteCode(code) {
 
 // ── EXPORT CSV ──
 function exportCSV() {
-  const headers = ['Nombre', 'Email', 'Código', 'Plan', 'Expira', 'Dispositivo', 'OS', 'Navegador', 'IP', 'Registro'];
+  const headers = ['Nombre', 'Email', 'Código', 'Plan', 'Expira', 'Dispositivo', 'OS', 'Navegador', 'IP', 'Registro', 'Entreno aperturas', 'Entreno último acceso'];
   const rows = allUsuarios.map(u => [
     u.nombre || '', u.email || '', u.code || '', u.plan || '',
     u.expira || '', u.dispositivo?.tipo || '', u.dispositivo?.os || '',
-    u.dispositivo?.browser || '', u.dispositivo?.ip || '', u.fecha_registro || ''
+    u.dispositivo?.browser || '', u.dispositivo?.ip || '', u.fecha_registro || '',
+    u.entreno ? num(u.entreno.aperturas) : 0, u.entreno?.ultimo_acceso || ''
   ]);
   // Comillas escapadas y sin fórmulas: un valor que empiece por = + - @ no se ejecuta en Excel
   const celda = (v) => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
