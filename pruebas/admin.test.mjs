@@ -125,6 +125,10 @@ test('acciones: validan código, valores y fecha; borrar elimina también el per
   assert.equal((await llamar(codes, { token, body: { action: 'inventada', code: 'FIT-AAAA-BBBB' } })).status, 400);
 
   assert.equal((await llamar(codes, { token, body: { action: 'reset_fingerprint', code: ' fit-aaaa-bbbb ' } })).status, 200);
+  db.set('code:FIT-AAAA-BBBB', JSON.stringify({ ...JSON.parse(db.get('code:FIT-AAAA-BBBB')), usos_usados: 30 }));
+  assert.equal((await llamar(codes, { token, body: { action: 'reset_usos', code: 'FIT-AAAA-BBBB' } })).status, 200);
+  assert.equal(JSON.parse(db.get('code:FIT-AAAA-BBBB')).usos_usados, 0);
+  assert.equal((await llamar(codes, { token, body: { action: 'reset_usos', code: 'FIT-NOEX-0000' } })).status, 404);
   assert.equal(JSON.parse(db.get('code:FIT-AAAA-BBBB')).fingerprint, null);
   assert.equal((await llamar(codes, { token, body: { action: 'extend', code: 'FIT-AAAA-BBBB', expira: '2031-02-03' } })).status, 200);
   assert.equal(JSON.parse(db.get('code:FIT-AAAA-BBBB')).expira, '2031-02-03');

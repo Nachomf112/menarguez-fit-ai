@@ -67,6 +67,17 @@ check('sin diálogos inesperados (alert)', dialogs.length === 0, dialogs.join(' 
 const csv = await page.evaluate(() => { let out = ''; const a = document.createElement; document.createElement = function (t) { const el = a.call(document, t); if (t === 'a') el.click = () => { out = decodeURIComponent(el.href.split(',').slice(1).join(',')); }; return el; }; exportCSV(); document.createElement = a; return out; });
 check('el CSV escapa comillas', csv.includes('""'));
 
+// Días restantes, reinicio de análisis y filtros que se mantienen al recargar
+check('muestra los días que quedan hasta la caducidad', (await page.locator('#tablaUsuarios').innerText()).includes('quedan '));
+check('botón de reiniciar análisis solo en Free con análisis usados', (await page.locator('#tablaUsuarios button', { hasText: '↺ Análisis' }).count()) === 1);
+await page.fill('#searchUsuarios', 'Ana');
+await page.evaluate(() => filterUsuarios());
+await page.evaluate(() => loadAll());
+await page.waitForTimeout(300);
+check('al recargar se mantiene el buscador', (await page.locator('#tablaUsuarios tr').count()) === 1 && (await page.locator('#tablaUsuarios').innerText()).includes('Ana Ficticia'));
+await page.fill('#searchUsuarios', '');
+await page.evaluate(() => filterUsuarios());
+
 // M8: el panel usa el token, nunca envía ni guarda la contraseña
 check('las peticiones llevan el token de sesión', cabecerasVistas.length > 0 && cabecerasVistas.every((h) => h.authorization === 'Bearer token.ficticio'));
 check('ninguna petición envía la contraseña en cabecera', cabecerasVistas.every((h) => !('x-admin-pass' in h)));

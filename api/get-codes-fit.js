@@ -49,6 +49,11 @@ export default async function handler(req, res) {
         return await modificar((raw) => { raw.fingerprint = null; raw.dispositivo = null; });
       }
 
+      // Vuelve a dejar todos los análisis de IA disponibles (plan Free)
+      if (action === 'reset_usos') {
+        return await modificar((raw) => { raw.usos_usados = 0; });
+      }
+
       if (action === 'toggle_activo') {
         if (typeof body.activo !== 'boolean') return res.status(400).json({ error: 'Valor no válido' });
         return await modificar((raw) => { raw.activo = body.activo; });

@@ -1245,14 +1245,14 @@ async function loadAll() {
     if (codesResp.ok) {
       const data = await codesResp.json();
       allUsuarios = data.codes || [];
-      renderUsuarios(allUsuarios);
+      filterUsuarios();   // respeta el buscador y el filtro de plan que ya estén puestos
       updateStats(allUsuarios);
       updateCharts(allUsuarios);
     }
     if (accessResp.ok) {
       const data = await accessResp.json();
       allAccesos = data.accesos || [];
-      renderAccesos(allAccesos);
+      filterAccesos();
     }
     // Cargar stats de usos por día
     await loadUsosDia();
@@ -1436,7 +1436,7 @@ function renderUsuarios(users) {
       <td><span class="mono" style="color:var(--green)">${esc(u.code || '—')}</span></td>
       <td><span class="badge ${u.plan === 'pro' ? 'badge-pro' : u.plan === 'cancelled' ? 'badge-expired' : 'badge-free'}">${esc(String(u.plan || 'free').toUpperCase())}</span></td>
       <td><span class="badge ${expirado ? 'badge-expired' : 'badge-active'}">${expirado ? 'Expirado' : 'Activo'}</span></td>
-      <td style="font-size:12px;color:${expirado ? 'var(--red)' : 'var(--muted)'}">${esc(u.expira || '—')}</td>
+      <td style="font-size:12px;color:${expirado ? 'var(--red)' : 'var(--muted)'}">${esc(u.expira || '—')}${celdaDiasRestantes(u.expira)}</td>
       <td>
         <span class="device-icon">${tipoIcon}</span>
         <span class="badge ${tipoBadge}" style="font-size:10px">${esc(tipo)}</span>
@@ -1456,11 +1456,28 @@ function renderUsuarios(users) {
       <td>
         <button class="action-btn" data-code="${esc(u.code)}" onclick="resetFingerprint(this.dataset.code)">Reset FP</button>
         <button class="action-btn extend" data-code="${esc(u.code)}" data-expira="${esc(u.expira || '')}" onclick="openExtender(this.dataset.code, this.dataset.expira)">📅 Extender</button>
+        ${u.plan !== 'pro' && usosUsados > 0 ? `<button class="action-btn" data-code="${esc(u.code)}" onclick="resetUsos(this.dataset.code)" title="Vuelve a dejar 30 análisis disponibles">↺ Análisis</button>` : ''}
         <button class="action-btn" data-code="${esc(u.code)}" data-activo="${u.activo ? 'true' : 'false'}" onclick="toggleActivo(this.dataset.code, this.dataset.activo === 'true')">${u.activo ? 'Desactivar' : 'Activar'}</button>
         <button class="action-btn danger" data-code="${esc(u.code)}" onclick="deleteCode(this.dataset.code)">✕</button>
       </td>
     </tr>`;
   }).join('');
+}
+
+// Días que quedan hasta la caducidad (el código deja de valer al empezar el día de "expira")
+function diasRestantes(expira) {
+  if (!expira || !/^\d{4}-\d{2}-\d{2}/.test(expira)) return null;
+  const fin = Date.parse(expira.slice(0, 10) + 'T00:00:00Z');
+  if (Number.isNaN(fin)) return null;
+  return Math.ceil((fin - Date.now()) / 86400000);
+}
+function celdaDiasRestantes(expira) {
+  const d = diasRestantes(expira);
+  if (d === null) return '';
+  const [texto, color] = d > 3650 ? ['sin caducidad', 'var(--muted)']
+    : d <= 0 ? [d === 0 ? 'caduca hoy' : `caducó hace ${-d} ${-d === 1 ? 'día' : 'días'}`, 'var(--red)']
+    : [`quedan ${d} ${d === 1 ? 'día' : 'días'}`, d <= 3 ? 'var(--orange)' : 'var(--green)'];
+  return `<div style="font-size:10px;margin-top:3px;color:${color}">${texto}</div>`;
 }
 
 // Uso de /entreno: número de aperturas y último acceso (hora de Madrid)
@@ -1576,6 +1593,18 @@ async function resetFingerprint(code) {
       body: JSON.stringify({ action: 'reset_fingerprint', code })
     });
     toast('Fingerprint reseteado ✓');
+    loadAll();
+  } catch(e) { toast('Error', 'error'); }
+}
+
+async function resetUsos(code) {
+  if (!confirm(`¿Reiniciar los análisis de ${code}? Volverá a tener 30 disponibles.`)) return;
+  try {
+    await adminFetch('/api/get-codes-fit', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'reset_usos', code })
+    });
+    toast('Análisis reiniciados ✓');
     loadAll();
   } catch(e) { toast('Error', 'error'); }
 }
