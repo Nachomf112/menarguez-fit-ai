@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/icon-192.png?v=2">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">  
 <title>Menarguez Fit AI · Nutrición Inteligente</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="/fonts/fonts.css" rel="stylesheet">
 <style>
 :root {
   --bg: #0a1a0f;
@@ -1089,7 +1089,7 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
     <button class="btn-primary" id="loginBtn">Acceder →</button>
 
     <div class="login-error" id="loginError">Código incorrecto o expirado.</div>
-    <p class="legal-note">Servicio solo para mayores de 18 años. La información es orientativa y no sustituye el consejo de un médico o nutricionista.</p>
+    <p class="legal-note">Servicio solo para mayores de 18 años. La información es orientativa y no sustituye el consejo de un médico o nutricionista. Consulta nuestra <a href="/privacidad.html" target="_blank" rel="noopener" style="color:var(--green)">política de privacidad</a>.</p>
 
     <div class="login-info">
       ¿Sin código? Solicita tu acceso gratuito de 2 días en <a href="https://tally.so/r/xXlpkr" target="_blank" style="color:var(--green);font-weight:700;text-decoration:none;">fit.menarguez-ia.com</a>
@@ -1102,6 +1102,7 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
   <div class="step-label">Configuración inicial</div>
   <h2 style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;letter-spacing:-.03em;margin-bottom:6px">Cuéntanos sobre ti</h2>
   <p style="color:var(--muted);font-size:14px;margin-bottom:28px;line-height:1.6">Solo necesitamos estos datos una vez para calcular tus necesidades calóricas exactas.</p>
+  <div class="form-error" id="consentAviso" role="status" style="background:rgba(250,204,21,.1);border-color:rgba(250,204,21,.35);color:#facc15">Hemos actualizado cómo tratamos tus datos. Revisa tu perfil y marca la casilla de consentimiento para seguir usándolo.</div>
 
   <div class="field">
     <label>Nombre</label>
@@ -1168,6 +1169,10 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
   <label class="age-check" for="pMayor18">
     <input type="checkbox" id="pMayor18">
     <span><strong>Confirmo que tengo 18 años o más.</strong> Entiendo que Menarguez Fit AI ofrece información orientativa y que no sustituye el consejo de un médico o nutricionista.</span>
+  </label>
+  <label class="age-check" for="pConsentSalud">
+    <input type="checkbox" id="pConsentSalud">
+    <span><strong>Doy mi consentimiento explícito</strong> para que Menarguez Fit AI guarde y use estos datos (peso, altura, sexo, fecha de nacimiento, actividad y objetivo), que pueden revelar información sobre mi salud, para calcular mis objetivos nutricionales. Puedo retirarlo cuando quiera desde la pestaña Perfil. Más información en la <a href="/privacidad.html" target="_blank" rel="noopener" style="color:var(--green)">política de privacidad</a>.</span>
   </label>
   <div class="form-error" id="profileError" role="alert"></div>
 
@@ -1439,6 +1444,10 @@ html[data-screen="dashboard"] #screenDashboard { display: block !important; }
       <button class="btn-primary" onclick="resetProfile()" style="background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3);box-shadow:none">
         Resetear perfil
       </button>
+      <button class="btn-primary" id="btnRetirarConsentimiento" onclick="retirarConsentimiento()" style="margin-top:10px;background:transparent;color:var(--muted);border:1px solid var(--line);box-shadow:none">
+        Retirar mi consentimiento y borrar mi perfil
+      </button>
+      <p class="legal-note" style="margin-top:12px">Tu diario de comidas se guarda solo en este dispositivo. Más información en la <a href="/privacidad.html" target="_blank" rel="noopener" style="color:var(--green)">política de privacidad</a>.</p>
     </div>
   </div>
 
@@ -1579,6 +1588,24 @@ function setScreen(s) {
 
 // ── EDAD MÍNIMA ──
 const EDAD_MINIMA = 18;
+// Versión del texto de consentimiento del perfil. Debe coincidir con CONSENT_VERSION de api/save-profile-fit.js.
+const CONSENT_VERSION = '2026-11';
+const tieneConsentimiento = (p) => !!(p && p.consentimiento && p.consentimiento.version === CONSENT_VERSION);
+
+// Perfil guardado sin consentimiento (versiones anteriores): rellenar el formulario y pedirlo.
+function pedirConsentimiento(p) {
+  try {
+    if (p.nombre) $('pNombre').value = p.nombre;
+    if (p.peso) $('pPeso').value = p.peso;
+    if (p.altura) $('pAltura').value = p.altura;
+    if (p.fechaNac) $('pFechaNac').value = p.fechaNac;
+    if (p.sexo) $('pSexo').value = p.sexo;
+    if (p.actividad) $('pActividad').value = p.actividad;
+    if (p.objetivo) document.querySelectorAll('.obj-btn').forEach(b => b.classList.toggle('active', b.dataset.obj === p.objetivo));
+  } catch (e) { /* formulario incompleto: el usuario lo rellena */ }
+  $('consentAviso').classList.add('show');
+  setScreen('profile');
+}
 const MSG_MENOR = 'Menarguez Fit AI es solo para mayores de 18 años.';
 
 // Cierra la sesión local, borra el perfil guardado en este navegador y vuelve al login con aviso.
@@ -1699,6 +1726,7 @@ function checkProfile(perfilFromServer) {
   const edadServ = edadDePerfil(perfilFromServer);
   if (edadServ !== null && edadServ < EDAD_MINIMA) { bloquearMenor(); return; }
   if (perfilFromServer && typeof perfilFromServer === 'object') {
+    if (!tieneConsentimiento(perfilFromServer)) { pedirConsentimiento(perfilFromServer); return; }
     perfil = perfilFromServer;
     localStorage.setItem(storageKey('fitai_perfil'), JSON.stringify(perfil));
     loadComidas();
@@ -1715,6 +1743,7 @@ function checkProfile(perfilFromServer) {
     const edadLocal = edadDePerfil(guardado);
     if (edadLocal !== null && edadLocal < EDAD_MINIMA) { bloquearMenor(); return; }
     if (!guardado) { setScreen('profile'); return; }
+    if (!tieneConsentimiento(guardado)) { pedirConsentimiento(guardado); return; }
     perfil = guardado;
     loadComidas();
     loadEjercicios();
@@ -1773,6 +1802,11 @@ async function saveProfile() {
     errBox.classList.add('show');
     return;
   }
+  if (!$('pConsentSalud').checked) {
+    errBox.textContent = 'Para calcular y guardar tu plan necesitamos tu consentimiento: marca la casilla.';
+    errBox.classList.add('show');
+    return;
+  }
 
   const btn = $('profileBtn');
   btn.disabled = true;
@@ -1782,14 +1816,15 @@ async function saveProfile() {
   const objetivos = calcularObjetivos({ peso, altura, edad, sexo, actividad, objetivo });
 
   // FIX: guardamos fechaNac para recalcular edad automáticamente en el futuro
-  let nuevoPerfil = { nombre, peso, altura, fechaNac, edad, sexo, actividad, objetivo, ...objetivos };
+  let nuevoPerfil = { nombre, peso, altura, fechaNac, edad, sexo, actividad, objetivo, ...objetivos,
+    consentimiento: { version: CONSENT_VERSION, fecha: new Date().toISOString() } };
 
   // El servidor es la barrera definitiva: si rechaza por edad, no se guarda nada.
   try {
     const r = await fetch('/api/save-profile-fit', {
       method: 'POST',
       headers: cabecerasApi(),
-      body: JSON.stringify({ code: currentUser ? currentUser.code : '', perfil: nuevoPerfil })
+      body: JSON.stringify({ code: currentUser ? currentUser.code : '', perfil: nuevoPerfil, consentimiento: CONSENT_VERSION })
     });
     if (r.status === 403) {
       bloquearMenor();
@@ -1799,6 +1834,13 @@ async function saveProfile() {
       sesionInvalida('Tu sesión ha caducado. Vuelve a entrar con tu código.');
       return;
     }
+    if (r.status === 428) {
+      btn.disabled = false;
+      btn.textContent = 'Calcular mi plan →';
+      errBox.textContent = 'Para guardar tu perfil necesitamos tu consentimiento: marca la casilla.';
+      errBox.classList.add('show');
+      return;
+    }
     if (r.status === 400) {
       btn.disabled = false;
       btn.textContent = 'Calcular mi plan →';
@@ -1806,6 +1848,7 @@ async function saveProfile() {
       return;
     }
     const d = await r.json().catch(() => ({}));
+    $('consentAviso').classList.remove('show');
     if (r.ok && d.perfil && Number.isFinite(d.perfil.objKcal)) {
       nuevoPerfil = { ...d.perfil, ajustadoAlMinimo: objetivos.ajustadoAlMinimo };   // el servidor manda
     }
@@ -1831,6 +1874,28 @@ async function saveProfile() {
   } else {
     toast('¡Plan calculado! Objetivo: ' + perfil.objKcal + ' kcal/día');
   }
+}
+
+// Retira el consentimiento: borra el perfil del servidor y de este dispositivo.
+async function retirarConsentimiento() {
+  if (!confirm('Se borrará tu perfil (peso, altura, fecha de nacimiento, sexo, actividad y objetivo) de nuestro servidor y de este dispositivo. Sin perfil no podemos calcular tus objetivos. ¿Continuar?')) return;
+  const btn = $('btnRetirarConsentimiento');
+  btn.disabled = true;
+  try {
+    const code = currentUser ? currentUser.code : '';
+    const r = await fetch('/api/save-profile-fit?code=' + encodeURIComponent(code), { method: 'DELETE', headers: cabecerasApi() });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+  } catch (e) {
+    btn.disabled = false;
+    toast('No se pudo borrar el perfil del servidor. Inténtalo de nuevo o escribe a info@imenarguez-ia.com.', 7000);
+    return;
+  }
+  localStorage.removeItem(storageKey('fitai_perfil'));
+  perfil = null;
+  btn.disabled = false;
+  $('pConsentSalud').checked = false;
+  toast('Perfil borrado. Si quieres volver a usar la app, tendrás que crearlo y dar tu consentimiento.', 6000);
+  setScreen('profile');
 }
 
 function resetProfile() {
@@ -2494,7 +2559,7 @@ if (codeFromUrl && $('fitCode')) {
   <div class="modal">
     <div class="upgrade-icon">🚀</div>
     <div class="upgrade-title">Has alcanzado tu límite</div>
-    <div class="upgrade-sub">Has usado tus 30 análisis gratuitos. Actualiza a Pro para continuar sin límites.</div>
+    <div class="upgrade-sub">Has usado tus 30 análisis gratuitos. El plan Pro, sin límites, estará disponible próximamente.</div>
     <div class="upgrade-features">
       <div class="upgrade-feature"><span class="upgrade-feature-icon">♾️</span><div class="upgrade-feature-title">Ilimitado</div><div class="upgrade-feature-desc">Sin límite de análisis</div></div>
       <div class="upgrade-feature"><span class="upgrade-feature-icon">🤖</span><div class="upgrade-feature-title">IA sin restricciones</div><div class="upgrade-feature-desc">Recomendaciones y menús</div></div>
@@ -2502,10 +2567,11 @@ if (codeFromUrl && $('fitCode')) {
       <div class="upgrade-feature"><span class="upgrade-feature-icon">🎯</span><div class="upgrade-feature-title">Tu objetivo</div><div class="upgrade-feature-desc">Plan 100% personalizado</div></div>
     </div>
     <div class="upgrade-price">
-      <div class="upgrade-price-amount">4,99€ <span>/mes</span></div>
-      <div class="upgrade-price-desc">Sin permanencia · Cancela cuando quieras</div>
+      <div class="upgrade-price-amount" style="font-size:24px">Próximamente</div>
+      <div class="upgrade-price-desc">Si te interesa el plan Pro, escríbeme a info@imenarguez-ia.com y te aviso en cuanto esté disponible.</div>
     </div>
-    <a href="https://buy.stripe.com/fZu28scTa1vJ4Ak5w3cjS02" target="_blank" class="btn-upgrade">⚡ Actualizar a Pro ahora →</a>
+    <!-- Pago Pro desactivado hasta empezar a vender (antes: https://buy.stripe.com/fZu28scTa1vJ4Ak5w3cjS02) -->
+    <a href="mailto:info@imenarguez-ia.com?subject=Plan%20Pro%20Menarguez%20Fit%20AI" class="btn-upgrade">✉️ Me interesa el plan Pro</a>
     <button class="btn-upgrade-cancel" onclick="document.getElementById('modalUpgrade').classList.remove('open')">Ahora no</button>
   </div>
 </div>

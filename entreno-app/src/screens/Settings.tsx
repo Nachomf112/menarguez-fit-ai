@@ -151,7 +151,7 @@ export function Settings() {
         <section className="card">
           <h3>Código de acceso</h3>
           <p className="small muted">Entras con el código <span style={{ fontFamily: 'monospace' }}>{codigoGuardado() || '—'}</span>. Tus perfiles y registros siguen en este dispositivo aunque salgas.</p>
-          <div className="row"><button type="button" className="btn sm" id="btn-salir-codigo" onClick={() => { olvidarAcceso(); location.reload(); }}>Salir del código</button></div>
+          <div className="row"><button type="button" className="btn sm" id="btn-salir-codigo" onClick={() => { olvidarAcceso(); location.reload(); }}>Salir del código</button><a className="btn sm" href="/privacidad.html" target="_blank" rel="noopener noreferrer">Política de privacidad</a></div>
         </section>
       )}
 

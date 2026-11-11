@@ -25,7 +25,7 @@ await ctx.route('**/*', async (route) => {
     peticiones.push(JSON.parse(route.request().postData() || '{}'));
     if (modo === 'sinred') return route.abort('internetdisconnected');
     const body = modo === 'ok' ? { valid: true, nombre: 'Ficticio', plan: 'free' }
-      : modo === 'otro' ? { valid: false, error: 'Este código ya está en uso en otro dispositivo. Si has cambiado de dispositivo, escribe a info@menarguez-ia.com' }
+      : modo === 'otro' ? { valid: false, error: 'Este código ya está en uso en otro dispositivo. Si has cambiado de dispositivo, escribe a info@imenarguez-ia.com' }
       : { valid: false, error: 'Código no encontrado. Revisa que esté bien escrito.' };
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
   }

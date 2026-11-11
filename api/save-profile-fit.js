@@ -11,13 +11,16 @@
 // v5: exige el dispositivo vinculado al código (cabecera X-Fit-Device).
 // ════════════════════════════════════════════════════════════════
 
-import { dispositivoDe, esDemo, esFormatoValido, estadoCodigo, kvGetJson, normalizarCodigo } from './_lib/codigo.js';
+import { comprobarDispositivo, dispositivoDe, esDemo, esFormatoValido, estadoCodigo, kvGetJson, normalizarCodigo } from './_lib/codigo.js';
 import { limpiarTexto } from './_lib/texto.js';
 import { calcularObjetivos } from './_lib/nutricion.js';
 
 const EDAD_MINIMA = 18;
 const EDAD_MAXIMA = 120;
 const MAX_BODY = 4000;   // caracteres: un perfil real ocupa unos 300
+// v6: consentimiento explícito (art. 9.2.a RGPD) para guardar el perfil. Cambiar la versión
+//     obliga a aceptar de nuevo. Debe coincidir con CONSENT_VERSION de public/app.html.
+export const CONSENT_VERSION = '2026-11';
 
 // Acepta "YYYY-MM-DD" (input type=date) y "DD/MM/YYYY". Devuelve Date UTC o null.
 function parseFecha(v) {
@@ -106,7 +109,7 @@ export function perfilSeguro(p, hoy = new Date()) {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.FIT_ALLOWED_ORIGIN || 'https://fit.menarguez-ia.com');
   res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Fit-Device');
   res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -150,6 +153,12 @@ export default async function handler(req, res) {
     const { perfil: limpio, rechazo } = perfilSeguro(perfil);
     if (rechazo) return res.status(rechazo.status).json({ error: rechazo.error, mensaje: rechazo.mensaje });
 
+    // Sin consentimiento explícito no se guarda nada en el servidor.
+    if (body.consentimiento !== CONSENT_VERSION) {
+      return res.status(428).json({ error: 'consentimiento_requerido', mensaje: 'Para guardar tu perfil necesitamos tu consentimiento.' });
+    }
+    limpio.consentimiento = { version: CONSENT_VERSION, fecha: new Date().toISOString() };
+
     // Demo: el perfil se queda solo en el navegador de cada visitante (no se comparte).
     if (esDemo(code)) return res.status(200).json({ ok: true, guardado: false, perfil: limpio });
 
@@ -178,6 +187,26 @@ export default async function handler(req, res) {
       return res.status(200).json({ perfil: perfil || null });
     } catch (err) {
       console.error('save-profile-fit get:', err.message);
+      return res.status(500).json({ error: 'error_interno' });
+    }
+  }
+
+  // ── DELETE: retirar el consentimiento y borrar el perfil ─────
+  // Basta con el dispositivo vinculado: también se puede borrar con el código caducado o desactivado.
+  if (req.method === 'DELETE') {
+    const urlObj = new URL(req.url, 'https://fit.menarguez-ia.com');
+    const code = normalizarCodigo(urlObj.searchParams.get('code'));
+    if (!code || !esFormatoValido(code)) return res.status(400).json({ error: 'codigo_invalido' });
+    if (esDemo(code)) return res.status(200).json({ ok: true, borrado: false });
+    try {
+      const data = await kvGetJson(kv, `code:${code}`);
+      if (!data) return res.status(404).json({ error: 'codigo_no_existe' });
+      if (comprobarDispositivo(data, dispositivoDe(req)) !== 'ok') return res.status(401).json({ error: 'codigo_otro_dispositivo' });
+      const r = await fetch(`${kv.url}/del/${encodeURIComponent(`profile:${code}`)}`, { method: 'POST', headers: kv.headers, signal: AbortSignal.timeout(5000) });
+      if (!r.ok) return res.status(502).json({ error: 'No se pudo borrar el perfil' });
+      return res.status(200).json({ ok: true, borrado: true });
+    } catch (err) {
+      console.error('save-profile-fit delete:', err.message);
       return res.status(500).json({ error: 'error_interno' });
     }
   }

@@ -1,4 +1,13 @@
 {
+  "regions": [
+    "fra1"
+  ],
+  "crons": [
+    {
+      "path": "/api/limpieza",
+      "schedule": "17 3 * * 1"
+    }
+  ],
   "rewrites": [
     {
       "source": "/app",

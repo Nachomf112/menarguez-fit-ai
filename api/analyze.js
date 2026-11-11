@@ -126,9 +126,9 @@ export default async function handler(req, res) {
         return res.status(503).json({ error: 'servicio_no_disponible', message: 'Inténtalo de nuevo en un momento.' });
       }
       if (!codeData) return res.status(401).json({ error: 'codigo_invalido', message: 'Código no encontrado.' });
-      if (!codeData.activo) return res.status(401).json({ error: 'codigo_desactivado', message: 'Código desactivado. Contacta con info@menarguez-ia.com' });
+      if (!codeData.activo) return res.status(401).json({ error: 'codigo_desactivado', message: 'Código desactivado. Contacta con info@imenarguez-ia.com' });
       if (codeData.expira && new Date() > new Date(codeData.expira)) {
-        return res.status(401).json({ error: 'codigo_expirado', message: 'Código expirado. Contacta con info@menarguez-ia.com' });
+        return res.status(401).json({ error: 'codigo_expirado', message: 'Código expirado. Contacta con info@imenarguez-ia.com' });
       }
       const disp = comprobarDispositivo(codeData, dispositivoDe(req));
       if (disp !== 'ok') {

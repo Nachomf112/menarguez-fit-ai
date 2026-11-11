@@ -110,9 +110,9 @@ export default async function handler(req, res) {
   try {
     const codeData = await kvGetJson(kv, `code:${cleanCode}`);
     if (!codeData) return res.status(200).json({ valid: false, error: 'Código no encontrado' });
-    if (!codeData.activo) return res.status(200).json({ valid: false, error: 'Código desactivado. Contacta con info@menarguez-ia.com' });
+    if (!codeData.activo) return res.status(200).json({ valid: false, error: 'Código desactivado. Contacta con info@imenarguez-ia.com' });
     if (codeData.expira && new Date() > new Date(codeData.expira)) {
-      return res.status(200).json({ valid: false, error: 'Código expirado. Contacta con info@menarguez-ia.com' });
+      return res.status(200).json({ valid: false, error: 'Código expirado. Contacta con info@imenarguez-ia.com' });
     }
 
     const usosUsados = codeData.usos_usados || 0;
@@ -126,7 +126,7 @@ export default async function handler(req, res) {
     if (estadoDisp === 'otro_dispositivo') {
       return res.status(200).json({
         valid: false,
-        error: 'Este código ya está en uso en otro dispositivo. Si has cambiado de dispositivo, escribe a info@menarguez-ia.com',
+        error: 'Este código ya está en uso en otro dispositivo. Si has cambiado de dispositivo, escribe a info@imenarguez-ia.com',
       });
     }
 
@@ -155,6 +155,9 @@ export default async function handler(req, res) {
       await kvPost('lpush/fitai:accesos', JSON.stringify(JSON.stringify({
         nombre: codeData.nombre || 'Usuario', code: cleanCode, fecha: fechaAcceso, hora: horaAcceso, tipo, os, browser, ip,
       })));
+      await kvPost('ltrim/fitai:accesos/0/999');   // como máximo 1.000 accesos (política de privacidad)
+      // Último acceso: lo usa api/limpieza.js para borrar los datos 12 meses después
+      await kvPost(`set/${encodeURIComponent(`ultimo:${cleanCode}`)}`, JSON.stringify(now.toISOString()));
     } catch (e) { console.warn('Error registrando acceso:', e.message); }
 
     return res.status(200).json({

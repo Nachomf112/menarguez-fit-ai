@@ -1,0 +1,12 @@
+/* Fuentes servidas desde fit.menarguez-ia.com (sin Google Fonts: la IP del visitante no sale a terceros).
+   Syne, DM Sans y DM Mono: SIL Open Font License 1.1 (ver OFL-*.txt). Subconjunto latino, incluye tildes y ñ. */
+@font-face { font-family: 'Syne'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/syne-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Syne'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/syne-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Syne'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/syne-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Syne'; font-style: normal; font-weight: 800; font-display: swap; src: url('/fonts/syne-latin-800-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 300; font-display: swap; src: url('/fonts/dm-sans-latin-300-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/dm-sans-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/dm-sans-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/dm-sans-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/dm-mono-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DM Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/dm-mono-latin-500-normal.woff2') format('woff2'); }

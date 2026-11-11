@@ -63,6 +63,7 @@ export function AccesoGate({ children }: { children: ReactNode }) {
                   <p className="small muted" style={{ maxWidth: '52ch' }}>
                     Es el mismo código de la app de nutrición de Menarguez Fit AI. El entrenamiento es gratuito.
                     Tu plan y tus registros se guardan solo en este dispositivo: al servidor solo llega tu código para controlar el acceso.
+                    {' '}<a href="/privacidad.html" target="_blank" rel="noopener noreferrer">Política de privacidad</a>.
                   </p>
                 </form>
               )}

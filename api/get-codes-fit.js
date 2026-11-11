@@ -68,6 +68,7 @@ export default async function handler(req, res) {
         // Al borrar el código se borra también su perfil (datos personales), para no dejar perfiles huérfanos.
         await kvFetch(`del/${encodeURIComponent('profile:' + code)}`, { method: 'POST' });
         await kvFetch(`del/${encodeURIComponent('entreno:' + code)}`, { method: 'POST' });
+        await kvFetch(`del/${encodeURIComponent('ultimo:' + code)}`, { method: 'POST' });
         return res.status(200).json({ ok: true });
       }
 

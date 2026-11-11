@@ -26,9 +26,12 @@ globalThis.fetch = async (url, opts = {}) => {
   const key = decodeURIComponent(rest.join('/'));
   if (op === 'get') return { ok: true, json: async () => ({ result: db.get(key) ?? null }) };
   if (op === 'set') { db.set(key, opts.body); return { ok: true, json: async () => ({ result: 'OK' }) }; }
+  if (op === 'del') { db.delete(key); return { ok: true, json: async () => ({ result: 1 }) }; }
   return { ok: false, status: 404, json: async () => ({}) };
 };
+// Por defecto los POST llevan el consentimiento; las pruebas de consentimiento lo quitan con consentimiento: null.
 const llamar = async (method, { body, query = '', disp = DISP } = {}) => {
+  if (method === 'POST' && body && typeof body === 'object' && !('consentimiento' in body)) body = { ...body, consentimiento: '2026-11' };
   let status = 0, json = null;
   const res = { setHeader() {}, status(s) { status = s; return this; }, json(j) { json = j; return this; }, end() { return this; } };
   await handler({ method, body, url: `/api/save-profile-fit${query}`, headers: disp ? { 'x-fit-device': disp } : {} }, res);
@@ -44,7 +47,7 @@ test('guarda solo campos conocidos, con el nombre limpio y la edad recalculada',
   assert.equal(g.admin, undefined);
   assert.equal(g.extra, undefined);
   assert.notEqual(g.edad, 99);
-  assert.deepEqual(Object.keys(g).sort(), ['actividad', 'ajustadoAlMinimo', 'altura', 'carbObj', 'edad', 'fatObj', 'fechaNac', 'nombre', 'objKcal', 'objetivo', 'peso', 'protObj', 'sexo', 'tdee']);
+  assert.deepEqual(Object.keys(g).sort(), ['actividad', 'ajustadoAlMinimo', 'altura', 'carbObj', 'consentimiento', 'edad', 'fatObj', 'fechaNac', 'nombre', 'objKcal', 'objetivo', 'peso', 'protObj', 'sexo', 'tdee']);
   assert.deepEqual(r.json.perfil, g);
 });
 
@@ -116,4 +119,32 @@ test('C3: sin el dispositivo vinculado no se puede leer ni guardar el perfil', a
   assert.equal(JSON.parse(db.get('profile:FIT-AAAA-BBBB')).nombre, 'Ana');
   db.set('code:FIT-NUEV-0000', JSON.stringify({ activo: true, expira: futuro }));   // nunca se ha entrado con él
   assert.equal((await llamar('POST', { body: { code: 'FIT-NUEV-0000', perfil: perfil() } })).json.error, 'codigo_sin_vincular');
+});
+
+test('consentimiento: sin él no se guarda nada; con él queda registrado con versión y fecha', async () => {
+  for (const consentimiento of [null, true, 'si', '2020-01']) {
+    const r = await llamar('POST', { body: { code: 'FIT-AAAA-BBBB', perfil: perfil(), consentimiento } });
+    assert.equal(r.status, 428, String(consentimiento));
+    assert.equal(r.json.error, 'consentimiento_requerido');
+  }
+  assert.equal(db.has('profile:FIT-AAAA-BBBB'), false);
+  const ok = await llamar('POST', { body: { code: 'FIT-AAAA-BBBB', perfil: perfil() } });
+  assert.equal(ok.status, 200);
+  const guardado = JSON.parse(db.get('profile:FIT-AAAA-BBBB'));
+  assert.equal(guardado.consentimiento.version, '2026-11');
+  assert.ok(!Number.isNaN(Date.parse(guardado.consentimiento.fecha)));
+});
+
+test('retirar el consentimiento borra el perfil, incluso con el código caducado; solo desde el dispositivo vinculado', async () => {
+  db.set('profile:FIT-AAAA-BBBB', JSON.stringify({ nombre: 'Ana' }));
+  assert.equal((await llamar('DELETE', { query: '?code=FIT-AAAA-BBBB', disp: '99999999-2222-4333-8444-555555555555' })).status, 401);
+  assert.equal(db.has('profile:FIT-AAAA-BBBB'), true);
+  const r = await llamar('DELETE', { query: '?code=fit-aaaa-bbbb' });
+  assert.equal(r.status, 200);
+  assert.equal(db.has('profile:FIT-AAAA-BBBB'), false);
+  db.set('profile:FIT-OLD0-0000', JSON.stringify({ nombre: 'Caducado' }));
+  assert.equal((await llamar('DELETE', { query: '?code=FIT-OLD0-0000' })).status, 200);
+  assert.equal(db.has('profile:FIT-OLD0-0000'), false);
+  assert.equal((await llamar('DELETE', { query: '?code=FIT-ZZZZ-9999' })).status, 404);
+  assert.equal((await llamar('DELETE', { query: '?code=<x>' })).status, 400);
 });

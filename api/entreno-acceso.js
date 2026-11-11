@@ -64,11 +64,11 @@ export default async function handler(req, res) {
   try {
     const codeData = await kvGetJson(kv, `code:${code}`);
     if (!codeData) return res.status(200).json({ valid: false, error: GENERICO });
-    if (!codeData.activo) return res.status(200).json({ valid: false, error: 'Código desactivado. Escribe a info@menarguez-ia.com' });
+    if (!codeData.activo) return res.status(200).json({ valid: false, error: 'Código desactivado. Escribe a info@imenarguez-ia.com' });
 
     const estado = comprobarDispositivo(codeData, dispositivo);
     if (estado === 'otro_dispositivo') {
-      return res.status(200).json({ valid: false, error: 'Este código ya está en uso en otro dispositivo. Si has cambiado de dispositivo, escribe a info@menarguez-ia.com' });
+      return res.status(200).json({ valid: false, error: 'Este código ya está en uso en otro dispositivo. Si has cambiado de dispositivo, escribe a info@imenarguez-ia.com' });
     }
 
     // Barrera de edad (misma regla que /app): si el perfil de nutrición es de un menor, no entra.
@@ -99,6 +99,7 @@ export default async function handler(req, res) {
         kvPost(`hsetnx/${clave}/primer_acceso/${enc(iso)}`),
         kvPost(`hset/${clave}/ultimo_acceso/${enc(iso)}`),
         kvPost(`hincrby/${clave}/aperturas/1`),
+        kvPost(`set/${enc(`ultimo:${code}`)}`, JSON.stringify(iso)),
         kvPost('lpush/fitai:accesos', JSON.stringify(JSON.stringify({
           nombre: codeData.nombre || 'Usuario', code, fecha, hora, tipo, os, browser, ip, app: 'entreno',
         }))),
