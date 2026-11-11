@@ -1893,6 +1893,9 @@ async function retirarConsentimiento() {
   localStorage.removeItem(storageKey('fitai_perfil'));
   perfil = null;
   btn.disabled = false;
+  // Vaciar el formulario: que no parezca que los datos siguen guardados
+  ['pNombre', 'pPeso', 'pAltura', 'pFechaNac'].forEach((id) => { $(id).value = ''; });
+  $('pMayor18').checked = false;
   $('pConsentSalud').checked = false;
   toast('Perfil borrado. Si quieres volver a usar la app, tendrás que crearlo y dar tu consentimiento.', 6000);
   setScreen('profile');
