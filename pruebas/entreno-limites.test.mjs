@@ -94,6 +94,15 @@ test('rechaza: estructura no válida (días repetidos, sin descanso, tipos inven
   assert.ok(validarPlan(siete, calcularLimites({ ...normalizarResumen(base()).resumen, dias: 7 })).errores.some((e) => /descanso/.test(e)));
 });
 
+test('fuerza de apoyo: cuenta solo la carrera para el volumen y no se permite tras sesiones duras', () => {
+  const L = limites({ minutosSemana: 0 }, { dias: 2, minutosSesion: 45 }); // máximo 40 min de carrera
+  const rodajeConFuerza = { dia: 1, tipo: 'carrera', minutosEstimados: 35, ejercicios: [1, 2, 3, 4], carrera: { tipo: 'rodaje', minutos: 17 } };
+  assert.deepEqual(validarPlan({ sesiones: [rodajeConFuerza, { ...run(5, 'tirada', 22), carrera: { tipo: 'tirada', minutos: 22 } }] }, L).errores, []);
+  const tiradaConFuerza = { dia: 5, tipo: 'carrera', minutosEstimados: 40, ejercicios: [1, 2, 3], carrera: { tipo: 'tirada', minutos: 22 } };
+  assert.ok(validarPlan({ sesiones: [{ ...run(1, 'rodaje', 17), carrera: { tipo: 'rodaje', minutos: 17 } }, tiradaConFuerza] }, L).errores.some((e) => /Fuerza de apoyo/.test(e)));
+  assert.ok(validarPlan({ sesiones: [{ dia: 1, tipo: 'carrera', minutosEstimados: 20, carrera: { tipo: 'rodaje', minutos: 30 } }] }, L).errores.some((e) => /no pueden superar/.test(e)));
+});
+
 test('los 6480 planes de las reglas v0.6 (perfiles ficticios) pasan el validador', () => {
   const planes = JSON.parse(readFileSync(new URL('./fixtures/planes-reglas.json', import.meta.url)));
   assert.equal(planes.length, 6480);
@@ -101,8 +110,9 @@ test('los 6480 planes de las reglas v0.6 (perfiles ficticios) pasan el validador
   for (const [distancia, experiencia, minutosSemana, dias, minutos, diasHastaPrueba, txt] of planes) {
     const { resumen } = normalizarResumen({ ...base({ distancia, experiencia, minutosSemana, diasHastaPrueba }), dias, minutosSesion: minutos });
     const sesiones = txt.split(';').map((s) => {
-      const [dia, tipo, tipoCarrera, min] = s.split(':');
-      return { dia: Number(dia), tipo, minutosEstimados: Number(min), ...(tipoCarrera ? { carrera: { tipo: tipoCarrera } } : {}) };
+      const [dia, tipo, tipoCarrera, min, minCarrera, nEj] = s.split(':');
+      return { dia: Number(dia), tipo, minutosEstimados: Number(min), ejercicios: Array.from({ length: Number(nEj) }, (_, k) => k),
+        ...(tipoCarrera ? { carrera: { tipo: tipoCarrera, minutos: Number(minCarrera) } } : {}) };
     });
     const v = validarPlan({ sesiones }, calcularLimites(resumen));
     if (!v.ok) fallos.push({ distancia, experiencia, minutosSemana, dias, minutos, diasHastaPrueba, errores: v.errores });

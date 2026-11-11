@@ -50,7 +50,7 @@ export function Home() {
           <span className="eyebrow">{next.atrasada ? 'Pendiente de esta semana' : next.s.dia === wd ? 'Hoy' : `Próxima · ${DAY_NAMES[next.s.dia]}`}</span>
           <h2>{next.s.titulo}</h2>
           <p className="muted">{next.s.objetivo} · ≈{next.s.minutosEstimados} min</p>
-          {next.s.tipo === 'fuerza' && <p className="small faint">{next.s.ejercicios.length} ejercicios</p>}
+          {next.s.ejercicios.length > 0 && <p className="small faint">{next.s.tipo === 'carrera' ? `Carrera + ${next.s.ejercicios.length} ejercicios de fuerza` : `${next.s.ejercicios.length} ejercicios`}</p>}
           <div className="row">
             <button type="button" className="btn primary" onClick={() => go('entrenar', { sessionId: next.s.id })}>Empezar</button>
             <button type="button" className="btn" onClick={() => go('sesion', { sessionId: next.s.id })}>Ver detalle</button>

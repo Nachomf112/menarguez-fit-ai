@@ -79,6 +79,11 @@ describe('carrera', () => {
     a.carrera!.minutos = Math.round(ps.carrera!.minutos * 0.5);
     expect(finishSession(a, { aerobicoObjetivo: ps.carrera!.minutos }, NOW).estado).toBe('parcial');
     a.carrera!.minutos = ps.carrera!.minutos;
+    if (a.ejercicios.length) {
+      // Con fuerza de apoyo: correr sin hacer las series es parcial; con todo hecho, completada
+      expect(finishSession(a, { aerobicoObjetivo: ps.carrera!.minutos }, NOW).estado).toBe('parcial');
+      a.ejercicios.forEach((e) => e.sets.forEach((x) => { x.hecho = true; }));
+    }
     const log = finishSession(a, { aerobicoObjetivo: ps.carrera!.minutos }, NOW);
     expect(log.estado).toBe('completada');
     expect(log.carrera?.tipo).toBe('rodaje');
@@ -86,7 +91,7 @@ describe('carrera', () => {
 });
 
 describe('reglas de carrera v0.5', () => {
-  const dur = (pl: ReturnType<typeof plan>, tipo: string) => pl.sesiones.find((s) => s.carrera?.tipo === tipo)?.minutosEstimados ?? 0;
+  const dur = (pl: ReturnType<typeof plan>, tipo: string) => pl.sesiones.find((s) => s.carrera?.tipo === tipo)?.carrera!.minutos ?? 0;
   it('caso real: 3 días, 2 de carrera en fase de base → rodaje + tirada, sin series', () => {
     const pl = plan(runner({ distancia: '10k', experiencia: 'ocasional', minutosSemana: 60 }, { dias: 3 }));
     const tipos = pl.sesiones.filter((s) => s.carrera).map((s) => s.carrera!.tipo);
@@ -103,7 +108,7 @@ describe('reglas de carrera v0.5', () => {
     for (const minutosSemana of [60, 90, 150, 240]) for (const dias of [3, 4, 5, 6]) for (const experiencia of ['ocasional', 'regular'] as const) {
       const pl = plan(runner({ distancia: '10k', experiencia, minutosSemana, fechaPrueba: '2027-01-10' }, { dias, minutos: 120 }));
       const t = dur(pl, 'tirada');
-      pl.sesiones.filter((s) => s.carrera && s.carrera.tipo !== 'tirada').forEach((s) => expect(s.minutosEstimados, `${minutosSemana}/${dias}/${experiencia}/${s.carrera!.tipo}`).toBeLessThan(t));
+      pl.sesiones.filter((s) => s.carrera && s.carrera.tipo !== 'tirada').forEach((s) => expect(s.carrera!.minutos, `${minutosSemana}/${dias}/${experiencia}/${s.carrera!.tipo}`).toBeLessThan(t));
     }
   });
   it('sin base (menos de 60 min/semana) no hay series ni tempo', () => {
@@ -130,7 +135,7 @@ describe('mejoras v0.3', () => {
 
 describe('reglas de carrera v0.6 (límites compartidos con el validador del servidor)', () => {
   const runs = (p: Profile) => plan(p).sesiones.filter((s) => s.tipo === 'carrera');
-  const volumen = (p: Profile) => runs(p).filter((s) => s.carrera!.tipo !== 'correr_caminar').reduce((t, s) => t + s.minutosEstimados, 0);
+  const volumen = (p: Profile) => runs(p).filter((s) => s.carrera!.tipo !== 'correr_caminar').reduce((t, s) => t + s.carrera!.minutos, 0);
 
   it('quien corre con 1 o 2 días a la semana recibe plan (antes daba error)', () => {
     for (const dias of [1, 2]) {
@@ -160,7 +165,35 @@ describe('reglas de carrera v0.6 (límites compartidos con el validador del serv
       const r = runs(runner({ distancia, minutosSemana: 300, fechaPrueba: '2026-12-10' }, { dias: 6, minutos: 120 }));
       expect(r.filter((s) => QUALITY.includes(s.carrera!.tipo)).length).toBeLessThanOrEqual(2);
       const t = r.find((s) => s.carrera!.tipo === 'tirada');
-      if (t) r.forEach((s) => expect(s.minutosEstimados).toBeLessThanOrEqual(t.minutosEstimados));
+      if (t) r.forEach((s) => expect(s.carrera!.minutos).toBeLessThanOrEqual(t.carrera!.minutos));
     }
+  });
+});
+
+describe('fuerza de apoyo para corredores', () => {
+  const fuerza = (pl: ReturnType<typeof plan>) => pl.sesiones.filter((s) => s.tipo === 'fuerza').length + pl.sesiones.filter((s) => s.tipo === 'carrera' && s.ejercicios.length).length;
+  it('con 2 días: bloque de fuerza tras el rodaje, nunca tras la tirada', () => {
+    const pl = plan(runner({ distancia: '10k', experiencia: 'regular', minutosSemana: 0 }, { dias: 2, minutos: 45 }));
+    const rodaje = pl.sesiones.find((s) => s.carrera?.tipo === 'rodaje')!;
+    const tirada = pl.sesiones.find((s) => s.carrera?.tipo === 'tirada')!;
+    expect(rodaje.ejercicios.length).toBeGreaterThanOrEqual(3);
+    expect(rodaje.ejercicios.every((e) => e.presc.series <= 2)).toBe(true);
+    expect(rodaje.titulo).toContain('fuerza de apoyo');
+    expect(rodaje.minutosEstimados).toBeLessThanOrEqual(45 + 2);
+    expect(tirada.ejercicios.length).toBe(0);
+  });
+  it('se buscan 2 estímulos de fuerza por semana cuando hay tiempo (con 2 días, 1: la tirada no lleva fuerza)', () => {
+    for (const dias of [2, 3, 4, 5, 6]) {
+      const pl = plan(runner({ distancia: '10k', experiencia: 'ocasional', minutosSemana: 90 }, { dias, minutos: 60 }));
+      expect(fuerza(pl), `${dias} días`).toBeGreaterThanOrEqual(dias === 2 ? 1 : 2);
+    }
+  });
+  it('nunca tras series, tempo o tirada; y no se añade si no cabe en el tiempo', () => {
+    for (const dias of [2, 3, 4, 5, 6]) for (const minutosSemana of [0, 60, 150, 300]) {
+      const pl = plan(runner({ distancia: '10k', experiencia: 'regular', minutosSemana, fechaPrueba: '2026-12-20' }, { dias, minutos: 60 }));
+      pl.sesiones.filter((s) => s.carrera && !['rodaje', 'correr_caminar'].includes(s.carrera.tipo)).forEach((s) => expect(s.ejercicios.length).toBe(0));
+    }
+    const corto = plan(runner({ distancia: '10k', experiencia: 'regular', minutosSemana: 150 }, { dias: 2, minutos: 30 }));
+    corto.sesiones.forEach((s) => expect(s.minutosEstimados).toBeLessThanOrEqual(32));
   });
 });

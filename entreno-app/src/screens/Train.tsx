@@ -134,14 +134,15 @@ function ActiveView() {
     </div>
   );
 
-  if (isAerobic && a.carrera) {
+  // Registro de la carrera (sesión solo de carrera o carrera + fuerza de apoyo)
+  const runCard = a.carrera ? (() => {
     const plan = ps?.carrera;
     const run = a.carrera;
     const updRun = (p: Partial<typeof run>) => upd((x) => ({ ...x, carrera: { ...x.carrera!, ...p } }));
     const pace = run.distanciaKm && run.minutos ? (run.minutos * 60) / run.distanciaKm : null;
     return (
-      <div className="screen">
-        {header}
+      <>
+        {!isAerobic && <span className="eyebrow">1 · Carrera</span>}
         {plan && (
           <div className="card accent">
             <span className="eyebrow">{RUN_TYPE_LABEL[plan.tipo]} · objetivo ≈{Math.round(plan.minutos)} min</span>
@@ -161,7 +162,17 @@ function ActiveView() {
         {pace && run.tipo === 'rodaje' && <p className="small muted">Ritmo medio: {fmtPace(pace)}. Solo es comparable con otros rodajes suaves en condiciones parecidas.</p>}
         {pace && run.tipo !== 'rodaje' && <p className="small muted">Ritmo medio de toda la sesión: {fmtPace(pace)}. Incluye calentamiento y recuperaciones, así que no refleja el ritmo de las repeticiones.</p>}
         <div className="field"><span>Molestias</span><Seg label="Molestias" value={run.molestia} onChange={(v) => updRun({ molestia: v as 0 | 1 | 2 | 3 })} options={MOLESTIA.map((m) => ({ v: m.v, l: m.l }))} /></div>
-        {run.molestia >= 2 && <Notice kind="danger">No sigas corriendo con dolor que cambia tu zancada. Si persiste o aumenta en los próximos días, consulta a un profesional sanitario y no aumentes el volumen.</Notice>}
+        {run.molestia >= 2 && <Notice kind="danger">No sigas corriendo con dolor que cambia tu zancada. Si persiste o aumenta en los próximos días, consulta a un profesional sanitario y no aumentes el volumen.{!isAerobic && ' Si la molestia es en la pierna, omite hoy la fuerza de apoyo.'}</Notice>}
+        {!isAerobic && <span className="eyebrow">2 · Fuerza de apoyo</span>}
+      </>
+    );
+  })() : null;
+
+  if (isAerobic && a.carrera) {
+    return (
+      <div className="screen">
+        {header}
+        {runCard}
         {finishPanel ?? <div className="row"><button type="button" className="btn primary" onClick={() => setFinish('guardar')}>Terminar</button><button type="button" className="btn danger" onClick={() => setFinish('cancelar')}>Cancelar sesión</button></div>}
       </div>
     );
@@ -220,6 +231,7 @@ function ActiveView() {
   return (
     <div className="screen">
       {header}
+      {runCard}
       <div className="chips" role="tablist" aria-label="Ejercicios de la sesión">
         {a.ejercicios.map((le, j) => {
           const ok = le.sets.every((s) => s.hecho);

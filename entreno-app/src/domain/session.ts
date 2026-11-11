@@ -50,6 +50,12 @@ export function statusOf(a: ActiveSession): SessionStatus | 'vacia' {
   const total = a.ejercicios.reduce((s, e) => s + e.sets.length, 0);
   const hechas = a.ejercicios.reduce((s, e) => s + e.sets.filter((x) => x.hecho).length, 0);
   if (a.carrera && a.ejercicios.length === 0) return a.carrera.minutos > 0 ? 'completada' : 'vacia';
+  // Carrera + fuerza de apoyo: completada solo si se corre y se hacen todas las series
+  if (a.carrera) {
+    const corrio = a.carrera.minutos > 0;
+    if (!corrio && hechas === 0) return 'vacia';
+    return corrio && hechas >= total ? 'completada' : 'parcial';
+  }
   if (a.aerobicoMin != null && a.ejercicios.length === 0) return a.aerobicoMin > 0 ? 'completada' : 'vacia';
   if (hechas === 0) return 'vacia';
   return hechas >= total ? 'completada' : 'parcial';
@@ -59,7 +65,7 @@ export function finishSession(a: ActiveSession, opts: { cancelar?: boolean; rpeS
   let estado: SessionStatus;
   const st = statusOf(a);
   if (opts.cancelar || st === 'vacia') estado = 'cancelada';
-  else if (a.ejercicios.length === 0 && opts.aerobicoObjetivo && ((a.carrera?.minutos ?? a.aerobicoMin ?? 0) < opts.aerobicoObjetivo * 0.8)) estado = 'parcial';
+  else if ((a.ejercicios.length === 0 || a.carrera) && opts.aerobicoObjetivo && ((a.carrera?.minutos ?? a.aerobicoMin ?? 0) < opts.aerobicoObjetivo * 0.8)) estado = 'parcial';
   else estado = st;
   return {
     id: a.id, planSessionId: a.planSessionId, titulo: a.titulo, fecha: a.inicio, inicio: a.inicio, fin: now.toISOString(),

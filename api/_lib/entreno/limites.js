@@ -154,7 +154,8 @@ const consecutivos = (a, b) => Math.abs(a - b) === 1 || Math.abs(a - b) === 6;
 
 /**
  * Valida una semana. Formato: { sesiones: [{ dia: 0–6, tipo: 'fuerza'|'aerobica'|'carrera',
- * minutosEstimados, carrera?: { tipo } }] }. Devuelve { ok, errores, avisos }.
+ * minutosEstimados, carrera?: { tipo, minutos }, ejercicios? }] }. minutosEstimados es la sesión
+ * completa (con la fuerza de apoyo); carrera.minutos, solo la carrera. Devuelve { ok, errores, avisos }.
  */
 export function validarPlan(plan, limites) {
   const errores = [], avisos = [];
@@ -182,13 +183,16 @@ export function validarPlan(plan, limites) {
     for (const s of runs) if (!TIPOS_CARRERA.includes(s.carrera?.tipo)) errores.push('Tipo de carrera no válido');
     if (errores.length) return { ok: false, errores, avisos };
     const tipo = (s) => s.carrera.tipo;
+    // Minutos de carrera (sin la fuerza de apoyo que pueda ir después). Si no vienen, los de la sesión.
+    const minCarrera = (s) => (Number.isFinite(s.carrera.minutos) && s.carrera.minutos > 0 ? s.carrera.minutos : s.minutosEstimados);
+    if (runs.some((s) => minCarrera(s) > s.minutosEstimados + 1)) errores.push('Los minutos de carrera no pueden superar la duración de la sesión');
     if (runs.length > L.maxSalidas) errores.push(`Demasiadas salidas de carrera: ${runs.length} (máximo ${L.maxSalidas})`);
 
     if (L.soloCorrerCaminar) {
       if (runs.some((s) => tipo(s) !== 'correr_caminar')) errores.push('Quien empieza solo debe hacer correr-caminar');
-      if (runs.some((s) => s.minutosEstimados > L.maxMinCorrerCaminar)) errores.push(`Correr-caminar de más de ${L.maxMinCorrerCaminar} min`);
+      if (runs.some((s) => minCarrera(s) > L.maxMinCorrerCaminar)) errores.push(`Correr-caminar de más de ${L.maxMinCorrerCaminar} min`);
     } else {
-      const volumen = runs.filter((s) => tipo(s) !== 'correr_caminar').reduce((t, s) => t + s.minutosEstimados, 0);
+      const volumen = Math.round(runs.filter((s) => tipo(s) !== 'correr_caminar').reduce((t, s) => t + minCarrera(s), 0));
       if (volumen > L.volumenMax) errores.push(`Volumen de carrera ${volumen} min: supera el máximo de ${L.volumenMax} min`);
     }
 
@@ -198,15 +202,20 @@ export function validarPlan(plan, limites) {
     if (!L.distanciaCorta && L.fase === 'base' && runs.length < L.calidadLargaEnBaseMinSalidas && runs.some((s) => CALIDAD_LARGA.includes(tipo(s)))) {
       errores.push('En fase de base, series o tempo solo con 3 salidas o más');
     }
-    if (calidad.some((s) => s.minutosEstimados < MIN_CALIDAD - 10)) errores.push('Sesión de calidad demasiado corta para hacerla con calentamiento');
+    if (calidad.some((s) => minCarrera(s) < MIN_CALIDAD - 10)) errores.push('Sesión de calidad demasiado corta para hacerla con calentamiento');
 
     const tirada = runs.find((s) => tipo(s) === 'tirada');
     if (runs.filter((s) => tipo(s) === 'tirada').length > 1) errores.push('Más de una tirada larga');
-    if (tirada && runs.some((s) => s !== tirada && s.minutosEstimados > tirada.minutosEstimados)) errores.push('La tirada larga debe ser la sesión de carrera más larga');
+    if (tirada && runs.some((s) => s !== tirada && minCarrera(s) > minCarrera(tirada))) errores.push('La tirada larga debe ser la sesión de carrera más larga');
 
     const duras = runs.filter((s) => TIPOS_CALIDAD.includes(tipo(s)) || tipo(s) === 'tirada');
     for (let i = 0; i < duras.length; i++) for (let j = i + 1; j < duras.length; j++) {
       if (consecutivos(duras[i].dia, duras[j].dia)) errores.push('Dos sesiones duras (calidad o tirada larga) en días seguidos');
+    }
+
+    // La fuerza de apoyo solo puede ir tras un rodaje suave o correr-caminar
+    if (runs.some((s) => Array.isArray(s.ejercicios) && s.ejercicios.length && !['rodaje', 'correr_caminar'].includes(tipo(s)))) {
+      errores.push('Fuerza de apoyo después de una sesión dura o de la tirada larga');
     }
 
     // Avisos (no bloquean)

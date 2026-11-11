@@ -44,6 +44,9 @@ const T: Record<string, Template> = {
   PULL: { key: 'PULL', titulo: 'Tracción', slots: [
     P('principal', 'traccion_v', 'traccion_h'), P('principal', 'traccion_h'), P('secundario', 'traccion_h', 'traccion_v'),
     P('accesorio', 'hombro_aisl'), P('accesorio', 'biceps')] },
+  // Fuerza de apoyo para corredores: bloque corto después de un rodaje suave
+  RUN_SUPPORT: { key: 'RUN_SUPPORT', titulo: 'Fuerza de apoyo', slots: [
+    P('principal', 'unilateral', 'sentadilla'), P('secundario', 'gluteo', 'bisagra'), P('accesorio', 'gemelo'), P('accesorio', 'tronco')] },
   LEGS: { key: 'LEGS', titulo: 'Pierna', slots: [
     P('principal', 'sentadilla', 'unilateral'), P('principal', 'bisagra', 'gluteo'), P('secundario', 'unilateral'),
     P('accesorio', 'pierna_aisl', 'gluteo'), P('accesorio', 'gemelo'), P('accesorio', 'tronco')] },
@@ -234,7 +237,11 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
   const notas: string[] = [];
   const sesiones: PlannedSession[] = [];
 
-  templatesFor(p, S).forEach((tpl, i) => {
+  /**
+   * Elige ejercicios para una plantilla y los ajusta al tiempo `presupuesto`.
+   * complemento = bloque tras correr: sin calentamiento propio, máximo 2 series y sin series extra.
+   */
+  const construir = (tpl: Template, presupuesto: number, complemento = false) => {
     const used = new Set<string>();
     const chosen: { e: Exercise; rol: Role }[] = [];
     const missing: Pattern[] = [];
@@ -256,28 +263,29 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
     }
 
     // Ajuste al tiempo disponible: calentamiento + vuelta a la calma + ejercicios por orden de prioridad.
-    const fixed = (p.minutos >= 45 ? 8 : 5) + 4;
+    const fixed = complemento ? 2 : (p.minutos >= 45 ? 8 : 5) + 4;
     const items: PlannedExercise[] = [];
     const roles: Role[] = [];
     let total = fixed;
     for (const { e, rol } of chosen) {
-      const presc = prescription(p, e, rol);
+      let presc = prescription(p, e, rol);
+      if (complemento) presc = { ...presc, series: Math.min(2, presc.series), rir: Math.max(presc.rir, 2) };
       const m = exerciseMinutes(e, presc);
-      if (items.length >= 3 && total + m > p.minutos) break;
+      if ((items.length >= 3 || complemento) && total + m > presupuesto) break;
       items.push({ exerciseId: e.id, presc });
       roles.push(rol);
       total += m;
     }
     // Si incluso 3 ejercicios no caben, se reducen series (mínimo 1).
     let guard = 0;
-    while (total > p.minutos + 2 && guard++ < 10) {
+    while (total > presupuesto + 2 && guard++ < 10) {
       const target = [...items].sort((a, b) => b.presc.series - a.presc.series)[0];
       if (!target || target.presc.series <= 1) break;
       target.presc = { ...target.presc, series: target.presc.series - 1 };
       total = fixed + items.reduce((s, it) => s + exerciseMinutes(EXERCISE_BY_ID[it.exerciseId], it.presc), 0);
     }
     // Si sobra tiempo, una serie más en los ejercicios principales (sin superar el máximo por nivel).
-    if (!lowRecovery(p) && !p.dolorQueAumenta) {
+    if (!complemento && !lowRecovery(p) && !p.dolorQueAumenta) {
       const maxSeries = runner ? 3 : isBeginner(p) ? 3 : p.experiencia === 'intermedio' ? 4 : 5;
       let added = true;
       while (added) {
@@ -286,7 +294,7 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
           if (roles[k] !== 'principal' || items[k].presc.series >= maxSeries) continue;
           const e = EXERCISE_BY_ID[items[k].exerciseId];
           const extra = exerciseMinutes(e, { ...items[k].presc, series: items[k].presc.series + 1 }) - exerciseMinutes(e, items[k].presc);
-          if (total + extra <= p.minutos - 2) {
+          if (total + extra <= presupuesto - 2) {
             items[k].presc = { ...items[k].presc, series: items[k].presc.series + 1 };
             total += extra; added = true;
           }
@@ -294,7 +302,11 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
       }
     }
     items.forEach((it) => { usedWeek[it.exerciseId] = (usedWeek[it.exerciseId] ?? 0) + 1; });
+    return { items, total, missing };
+  };
 
+  templatesFor(p, S).forEach((tpl, i) => {
+    const { items, total, missing } = construir(tpl, p.minutos);
     const avisos: string[] = [];
     if (missing.includes('traccion_v') || missing.includes('traccion_h')) {
       avisos.push('Sin material para ejercicios de tracción. Una banda elástica permitiría añadirlos.');
@@ -334,7 +346,29 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
     });
   });
 
-  if (runner) sesiones.push(...runSessions(p, rd!.run, now));
+  if (runner) {
+    const runs = runSessions(p, rd!.run, now);
+    // Fuerza de apoyo: 2 estímulos de fuerza por semana (OMS, ACSM). Si no hay días de fuerza
+    // suficientes, se añade un bloque corto tras los rodajes suaves (nunca tras tirada o calidad),
+    // si cabe en el tiempo por sesión y no hay dolor que aumente.
+    const faltan = Math.max(0, 2 - S);
+    if (faltan && !p.dolorQueAumenta) {
+      const anfitriones = runs.filter((r) => r.carrera && ['rodaje', 'correr_caminar'].includes(r.carrera.tipo))
+        .sort((a, b) => Math.min(...strengthDays.map((d) => Math.abs(a.dia - d)), 7) > Math.min(...strengthDays.map((d) => Math.abs(b.dia - d)), 7) ? -1 : a.dia - b.dia)
+        .slice(0, faltan);
+      for (const r of anfitriones) {
+        const presupuesto = Math.min(20, p.minutos - r.minutosEstimados);
+        if (presupuesto < 12) continue;
+        const { items, total } = construir(T.RUN_SUPPORT, presupuesto, true);
+        if (items.length < 3) continue;
+        r.ejercicios = items;
+        r.titulo = `${r.titulo} + fuerza de apoyo`;
+        r.minutosEstimados = Math.round(r.minutosEstimados + total);
+        r.avisos.push(`Después de correr: ${items.length} ejercicios de fuerza de apoyo (≈${Math.round(total)} min). Hazlos con técnica cuidada y sin llegar al fallo.`);
+      }
+    }
+    sesiones.push(...runs);
+  }
   sesiones.sort((a, b) => a.dia - b.dia);
   const ocupados = new Set(sesiones.map((s) => s.dia));
   const diasDescanso = [0, 1, 2, 3, 4, 5, 6].filter((d) => !ocupados.has(d));

@@ -26,14 +26,14 @@ for (const distancia of distancias) for (const experiencia of exps)
         if (!r.ok && compacto) throw new Error(r.motivo);
         if (!r.ok) { out.push({ entrada: { distancia, experiencia, minutosSemana, dias, minutos, prueba, limit }, error: r.motivo }); continue; }
         if (compacto) {
-          // [distancia, experiencia, minutosSemana, dias, minutos, diasHastaPrueba, "dia:tipo:tipoCarrera:min;…"]
+          // [distancia, experiencia, minutosSemana, dias, minutos, diasHastaPrueba, "dia:tipo:tipoCarrera:min:minCarrera:nEjercicios;…"]
           out.push([distancia, experiencia, minutosSemana, dias, minutos, prueba ?? null,
-            r.plan.sesiones.map((s) => `${s.dia}:${s.tipo}:${s.carrera?.tipo ?? ''}:${s.minutosEstimados}`).join(';')]);
+            r.plan.sesiones.map((s) => `${s.dia}:${s.tipo}:${s.carrera?.tipo ?? ''}:${s.minutosEstimados}:${s.carrera?.minutos ?? ''}:${s.ejercicios.length}`).join(';')]);
           continue;
         }
         out.push({
           entrada: { distancia, experiencia, minutosSemana, dias, minutos, diasHastaPrueba: prueba ?? null, limitaciones: p.limitaciones },
-          plan: { diasDescanso: r.plan.diasDescanso, sesiones: r.plan.sesiones.map((s) => ({ dia: s.dia, tipo: s.tipo, minutosEstimados: s.minutosEstimados, carrera: s.carrera ? { tipo: s.carrera.tipo, minutos: s.carrera.minutos } : undefined })) },
+          plan: { diasDescanso: r.plan.diasDescanso, sesiones: r.plan.sesiones.map((s) => ({ dia: s.dia, tipo: s.tipo, minutosEstimados: s.minutosEstimados, ejercicios: s.ejercicios.map((e) => e.exerciseId), carrera: s.carrera ? { tipo: s.carrera.tipo, minutos: s.carrera.minutos } : undefined })) },
         });
       }
 writeFileSync(process.argv[2], JSON.stringify(out));

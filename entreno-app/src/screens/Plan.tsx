@@ -34,7 +34,7 @@ export function PlanScreen() {
                   <div>
                     <strong>{s.titulo}</strong>
                     <div className="small muted">
-                      {s.tipo === 'fuerza' ? `${s.ejercicios.length} ejercicios` : s.tipo === 'carrera' ? 'Carrera' : AEROBIC_LABEL[s.aerobico!.actividad]} · ≈{s.minutosEstimados} min
+                      {s.tipo === 'fuerza' ? `${s.ejercicios.length} ejercicios` : s.tipo === 'carrera' ? (s.ejercicios.length ? `Carrera + ${s.ejercicios.length} ejercicios de fuerza` : 'Carrera') : AEROBIC_LABEL[s.aerobico!.actividad]} · ≈{s.minutosEstimados} min
                     </div>
                   </div>
                   {done.has(s.id) ? <span className="badge ok">Hecha</span> : <span className={`badge ${s.tipo === 'carrera' ? 'demo' : 'blue'}`}>{s.tipo === 'fuerza' ? 'Fuerza' : s.tipo === 'carrera' ? 'Carrera' : 'Aeróbico'}</span>}
@@ -45,7 +45,7 @@ export function PlanScreen() {
         })}
       </div>
       <p className="small muted">{plan.sugerenciaDescanso}</p>
-      <div className="two">
+      {plan.sesiones.some((x) => x.ejercicios.length > 0) && <div className="two">
         <div className="card">
           <span className="eyebrow">Antes de empezar</span>
           <h2>Control antes que kilos</h2>
@@ -56,7 +56,7 @@ export function PlanScreen() {
           <h2>Gana repeticiones primero</h2>
           <p className="small muted">Cuando completes todas las series en el tope del rango con técnica estable, esfuerzo adecuado y sin molestias, sube la carga mínima disponible. No hay aumentos automáticos: tú decides.</p>
         </div>
-      </div>
+      </div>}
       {plan.notas.length > 0 && (
         <div className="card">
           <h3>Notas del plan</h3>
@@ -123,6 +123,7 @@ export function SessionDetail() {
         </div>
       )}
 
+      {s.carrera && s.ejercicios.length > 0 && <div className="stack"><h3>Fuerza de apoyo, después de correr</h3><p className="small muted">Hazla al terminar el rodaje, sin llegar al fallo. Si hoy has notado molestias en la pierna al correr, omítela.</p></div>}
       {s.ejercicios.map((it, i) => {
         const e = EXERCISE_BY_ID[it.exerciseId];
         const sug = suggestFor(it.exerciseId, it.presc, pd.sesiones);
