@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark light">
+<title>Tu código de acceso a Menarguez Fit AI</title>
+</head>
+<!--
+  Plantilla del correo de bienvenida (Make → módulo Gmail → contenido HTML).
+  Variables del webhook de Make (api/tally-webhook.js): nombre, codigo, expira, plan.
+  Si en tu escenario el webhook no es el módulo 1, cambia "1." por el número correcto
+  en {{1.nombre}}, {{1.codigo}}, {{1.expira}} y {{1.plan}}.
+-->
+<body style="margin:0;padding:0;background:#0a1a0f;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0a1a0f;">
+  <tr>
+    <td align="center" style="padding:32px 12px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;background:#12241a;border:1px solid #2a4a32;border-radius:18px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
+
+        <!-- Cabecera -->
+        <tr>
+          <td align="center" style="padding:32px 24px 28px;background:#14532d;background-image:linear-gradient(135deg,#0f2a19 0%,#166534 60%,#22c55e 100%);">
+            <div style="display:inline-block;padding:8px 16px;border:1px solid #4ade80;border-radius:10px;color:#4ade80;font-size:11px;font-weight:bold;letter-spacing:3px;">MENARGUEZ FIT AI</div>
+            <div style="width:60px;height:60px;margin:18px auto 0;border-radius:14px;background:#4ade80;background-image:linear-gradient(135deg,#22c55e,#a3e635);color:#0a1a0f;font-size:28px;font-weight:bold;line-height:60px;text-align:center;">F</div>
+            <h1 style="margin:18px 0 6px;color:#f0fdf4;font-size:24px;line-height:1.25;">¡Bienvenido/a, <span style="color:#4ade80;">{{1.nombre}}</span>!</h1>
+            <p style="margin:0;color:#bbf7d0;font-size:14px;line-height:1.5;">Tu acceso a Menarguez Fit AI está listo:<br>nutrición y entrenamiento con el mismo código.</p>
+          </td>
+        </tr>
+
+        <!-- Código -->
+        <tr>
+          <td style="padding:28px 24px 8px;">
+            <p style="margin:0 0 18px;color:#d1fae5;font-size:14px;line-height:1.6;">Hola <strong style="color:#f0fdf4;">{{1.nombre}}</strong>, este es tu código. Sirve para las <strong style="color:#f0fdf4;">dos apps</strong>: no hace falta que te registres otra vez.</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0f2017;border:1px solid #2a4a32;border-radius:14px;">
+              <tr>
+                <td align="center" style="padding:20px 16px;">
+                  <div style="color:#4ade80;font-size:11px;font-weight:bold;letter-spacing:3px;">TU CÓDIGO DE ACCESO</div>
+                  <div style="margin:12px 0 14px;color:#f0fdf4;font-family:'Courier New',Courier,monospace;font-size:26px;font-weight:bold;letter-spacing:4px;">{{1.codigo}}</div>
+                  <div style="color:#9cc4a8;font-size:12px;line-height:1.6;">📅 Nutrición con IA, válida hasta: <strong style="color:#f0fdf4;">{{1.expira}}</strong> · Plan {{1.plan}}<br>🏃 Entrenamiento: gratis y sin caducidad</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Botones -->
+        <tr>
+          <td style="padding:20px 24px 4px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" style="padding:0 0 10px;">
+                  <a href="https://fit.menarguez-ia.com/app" style="display:block;padding:15px 18px;border-radius:12px;background:#22c55e;color:#0a1a0f;font-size:16px;font-weight:bold;text-decoration:none;">🥗 Abrir Nutrición</a>
+                </td>
+              </tr>
+              <tr>
+                <td align="center">
+                  <a href="https://fit.menarguez-ia.com/entreno/" style="display:block;padding:15px 18px;border-radius:12px;background:#0080F0;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">🏃 Abrir Entrenamiento</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Qué puedes hacer -->
+        <tr>
+          <td style="padding:26px 24px 6px;">
+            <div style="border-top:1px solid #2a4a32;padding-top:22px;color:#4ade80;font-size:11px;font-weight:bold;letter-spacing:3px;">¿QUÉ PUEDES HACER?</div>
+            <p style="margin:14px 0 6px;color:#f0fdf4;font-size:14px;font-weight:bold;">🥗 Nutrición</p>
+            <p style="margin:0;color:#9cc4a8;font-size:13px;line-height:1.6;">Escribe lo que comes en texto libre y la IA calcula calorías y macros, te da recomendaciones y te sugiere un menú para el resto del día.</p>
+            <p style="margin:14px 0 6px;color:#f0fdf4;font-size:14px;font-weight:bold;">🏃 Entrenamiento</p>
+            <p style="margin:0;color:#9cc4a8;font-size:13px;line-height:1.6;">Crea tu plan semanal de fuerza y carrera según tu nivel, tus días y tu tiempo, y registra tus sesiones para ver tu progreso.</p>
+          </td>
+        </tr>
+
+        <!-- Importante -->
+        <tr>
+          <td style="padding:22px 24px 6px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1c1a0e;border:1px solid #5c5317;border-radius:12px;">
+              <tr>
+                <td style="padding:14px 16px;color:#fde68a;font-size:13px;line-height:1.6;">
+                  <strong>Importante:</strong> usa las dos apps siempre desde el <strong>mismo móvil y el mismo navegador</strong>. El código queda vinculado a ese dispositivo. Si cambias de móvil, escríbenos y lo pasamos al nuevo.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Pie -->
+        <tr>
+          <td style="padding:24px 24px 28px;color:#6b9e7a;font-size:11px;line-height:1.6;text-align:center;">
+            Solo para mayores de 18 años. La información es orientativa y no sustituye el consejo de un médico, dietista-nutricionista ni fisioterapeuta.<br>
+            ¿Dudas? Escríbenos a <a href="mailto:info@imenarguez-ia.com" style="color:#4ade80;">info@imenarguez-ia.com</a> · <a href="https://fit.menarguez-ia.com/privacidad.html" style="color:#4ade80;">Política de privacidad</a><br><br>
+            <span style="color:#9cc4a8;">Ignacio Menárguez Fernández | Menarguez-IA-Solutions</span>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
