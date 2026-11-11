@@ -27,6 +27,10 @@ beforeEach(() => {
     ['code:FIT-SINF-0004', JSON.stringify({ nombre: 'Sin fechas' })],
     // perfil huérfano
     ['profile:FIT-HUER-0005', JSON.stringify({ peso: 80 })],
+    // índice por correo: uno apunta a un código que no existe, otro a uno vivo
+    ['email:huella-huerfana', JSON.stringify('FIT-NOEX-ISTE')],
+    ['email:huella-viva', JSON.stringify('FIT-PRO0-0003')],
+    ['email:huella-del-viejo', JSON.stringify('FIT-VIEJ-0001')],
   ]);
   hashes.set('entreno:FIT-ENTR-0002', new Map([['ultimo_acceso', hace(10).toISOString()]]));
   lista = [es(1), es(100), es(300), es(370), es(500)].map((fecha) => JSON.stringify(JSON.stringify({ code: 'FIT-X', fecha })));
@@ -67,7 +71,7 @@ test('sin el secreto del cron no hace nada', async () => {
   const guardado = process.env.CRON_SECRET; delete process.env.CRON_SECRET;
   assert.equal((await llamar()).status, 500);
   process.env.CRON_SECRET = guardado;
-  assert.equal(db.size, 7);
+  assert.equal(db.size, 10);
 });
 
 test('simulación: cuenta lo que borraría sin borrar', async () => {
@@ -81,9 +85,9 @@ test('simulación: cuenta lo que borraría sin borrar', async () => {
 test('borra lo caducado y sin uso hace más de 12 meses, los huérfanos y los accesos antiguos; conserva el resto', async () => {
   const r = await llamar();
   assert.equal(r.status, 200);
-  assert.deepEqual(r.json, { simulacion: false, codigos_revisados: 4, codigos_borrados: 1, codigos_sin_fechas: 1, huerfanos_borrados: 1, accesos_borrados: 2 });
-  for (const k of ['code:FIT-VIEJ-0001', 'profile:FIT-VIEJ-0001', 'ultimo:FIT-VIEJ-0001', 'profile:FIT-HUER-0005']) assert.equal(db.has(k), false, k);
-  for (const k of ['code:FIT-ENTR-0002', 'code:FIT-PRO0-0003', 'code:FIT-SINF-0004']) assert.equal(db.has(k), true, k);
+  assert.deepEqual(r.json, { simulacion: false, codigos_revisados: 4, codigos_borrados: 1, codigos_sin_fechas: 1, huerfanos_borrados: 3, accesos_borrados: 2 });
+  for (const k of ['code:FIT-VIEJ-0001', 'profile:FIT-VIEJ-0001', 'ultimo:FIT-VIEJ-0001', 'profile:FIT-HUER-0005', 'email:huella-huerfana', 'email:huella-del-viejo']) assert.equal(db.has(k), false, k);
+  for (const k of ['code:FIT-ENTR-0002', 'code:FIT-PRO0-0003', 'code:FIT-SINF-0004', 'email:huella-viva']) assert.equal(db.has(k), true, k);
   assert.equal(lista.length, 3);
   assert.ok(!JSON.stringify(r.json).includes('Viejo'), 'la respuesta no lleva datos personales');
 });

@@ -106,6 +106,50 @@ async function upstashExists(key) {
   return Number(data.result) === 1;
 }
 
+async function upstashGet(key) {
+  const { url, headers } = kvConfig();
+  const res = await fetch(`${url}/get/${encodeURIComponent(key)}`, { headers });
+  if (!res.ok) throw new Error('Upstash lectura fallida');
+  let v = (await res.json()).result;
+  try { if (typeof v === 'string') v = JSON.parse(v); if (typeof v === 'string' && v.startsWith('{')) v = JSON.parse(v); } catch { /* valor simple */ }
+  if (Array.isArray(v)) v = v[0];
+  return v ?? null;
+}
+
+async function upstashKeys(patron) {
+  const { url, headers } = kvConfig();
+  const res = await fetch(`${url}/keys/${encodeURIComponent(patron)}`, { headers });
+  if (!res.ok) throw new Error('Upstash lectura fallida');
+  return (await res.json()).result || [];
+}
+
+/** Clave del índice por correo: solo la huella del correo, nunca el correo en claro. */
+export function claveEmail(email, secret) {
+  const norm = String(email || '').trim().toLowerCase();
+  return 'email:' + crypto.createHmac('sha256', secret).update(`fit-email:${norm}`).digest('hex').slice(0, 32);
+}
+
+/**
+ * Código ya existente para este correo, o null.
+ * 1) índice email:<huella> → código (si ese código sigue existiendo);
+ * 2) altas anteriores al índice: se buscan entre los códigos (pocos, de momento).
+ */
+async function codigoDelEmail(email, secret) {
+  const norm = String(email || '').trim().toLowerCase();
+  const indice = await upstashGet(claveEmail(norm, secret));
+  if (typeof indice === 'string' && indice) {
+    const data = await upstashGet(`code:${indice}`);
+    if (data && typeof data === 'object') return { code: indice, data };
+  }
+  for (const k of await upstashKeys('code:FIT-*')) {
+    const data = await upstashGet(k);
+    if (data && typeof data === 'object' && String(data.email || '').trim().toLowerCase() === norm) {
+      return { code: k.slice('code:'.length), data };
+    }
+  }
+  return null;
+}
+
 async function upstashSet(key, value) {
   const { url, headers } = kvConfig();
   const res = await fetch(`${url}/set/${encodeURIComponent(key)}`, {
@@ -148,6 +192,35 @@ export default async function handler(req, res) {
     const idEnvio = body?.data?.submissionId || body?.data?.responseId || body?.eventId;
     if (!idEnvio) return res.status(400).json({ error: 'Envío sin identificador' });
 
+    // Un correo, un código: si ya se registró antes, se le reenvía su mismo código
+    // (no se crea otro ni se renueva el periodo gratuito).
+    let previo = null;
+    try { previo = await codigoDelEmail(fields.email, secret); }
+    catch (e) { console.error(e.message); return res.status(500).json({ error: 'error_interno' }); }
+    if (previo) {
+      try { await upstashSet(claveEmail(fields.email, secret), previo.code); } catch { /* el índice es opcional */ }
+      const repetido = await fetch(hook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: previo.data.nombre || fields.nombre || 'Usuario',
+          email: fields.email,
+          codigo: previo.code,
+          expira: previo.data.expira || '',
+          app: 'Menarguez Fit AI',
+          url_app: 'https://fit.menarguez-ia.com',
+          plan: previo.data.plan === 'pro' ? 'Pro' : `Free (${DIAS_FREE} días)`,
+          repetido: true,
+        }),
+      });
+      if (!repetido.ok) {
+        console.error('Make no aceptó el aviso (registro repetido)');
+        return res.status(502).json({ error: 'Aviso a Make fallido' });
+      }
+      console.log('Registro repetido: se reenvía el código existente');
+      return res.status(200).json({ success: true, repetido: true });
+    }
+
     const code = codigoFree(idEnvio, secret);
     const expira = fechaExpiracion(DIAS_FREE);
 
@@ -177,6 +250,7 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'No se pudo guardar el código' });
       }
     }
+    try { await upstashSet(claveEmail(fields.email, secret), code); } catch { /* el índice es opcional */ }
 
     // Si Make falla se responde 502: Tally reintenta y el código no cambia
     const aviso = await fetch(hook, {

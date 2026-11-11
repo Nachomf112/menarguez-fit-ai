@@ -5,7 +5,7 @@
 //   - código, datos de alta, perfil y uso de entreno: 12 meses después de la caducidad
 //     del código y del último acceso (lo más reciente de las dos fechas);
 //   - registro de accesos: entradas de más de 12 meses (y nunca más de 1.000);
-//   - perfiles, registros de entreno y últimos accesos huérfanos (sin código).
+//   - perfiles, registros de entreno, últimos accesos e índice por correo huérfanos (sin código).
 // Seguridad: solo con la cabecera Authorization: Bearer <CRON_SECRET>, que Vercel añade
 // sola a las llamadas del cron si existe la variable CRON_SECRET. Sin ella, no hace nada.
 // ?simular=1 devuelve lo que borraría, sin borrar. La respuesta solo tiene recuentos.
@@ -78,6 +78,7 @@ export default async function handler(req, res) {
     // 1. Códigos caducados hace más de 12 meses y sin accesos en ese tiempo
     const claves = (await cmd('keys', 'code:FIT-*')) || [];
     const vivos = new Set();
+    const borrados = new Set();
     for (const clave of claves) {
       const code = clave.slice('code:'.length);
       resumen.codigos_revisados++;
@@ -87,6 +88,7 @@ export default async function handler(req, res) {
       if (d === 'sin_fechas') resumen.codigos_sin_fechas++;
       if (d !== 'borrar') { vivos.add(code); continue; }
       resumen.codigos_borrados++;
+      borrados.add(code);
       if (!simular) for (const k of [clave, `profile:${code}`, `entreno:${code}`, `ultimo:${code}`]) await cmd('del', k);
     }
 
@@ -99,6 +101,15 @@ export default async function handler(req, res) {
         resumen.huerfanos_borrados++;
         if (!simular) await cmd('del', k);
       }
+    }
+
+    // 2b. Índice por correo (email:<huella> → código) que apunta a un código que ya no existe
+    for (const k of (await cmd('keys', 'email:*')) || []) {
+      let code = await cmd('get', k);
+      try { if (typeof code === 'string' && code.startsWith('"')) code = JSON.parse(code); } catch { /* valor simple */ }
+      if (typeof code === 'string' && claves.includes(`code:${code}`) && !borrados.has(code)) continue;
+      resumen.huerfanos_borrados++;
+      if (!simular) await cmd('del', k);
     }
 
     // 3. Registro de accesos: fuera lo de más de 12 meses y, en todo caso, más allá de 1.000 entradas
