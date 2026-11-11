@@ -217,6 +217,9 @@ button { cursor: pointer; font: inherit; }
   .action-btn.extend { padding-left: 8px; padding-right: 8px; }
 }
 @media (max-width: 1250px) { .acciones .lbl { display: none; } }
+/* Pantallas anchas: todas las acciones a la vista, sin menú */
+@media (min-width: 1500px) { .acciones .menu-acc { display: none; } }
+@media (max-width: 1499px) { .acciones .acc-ancha { display: none; } }
 
 /* CONTENT */
 .content { padding: 24px 28px; max-width: none; }
@@ -1471,11 +1474,15 @@ function renderUsuarios(users) {
          <div class="usos-bar"><span style="width:${pct}%;background:${colorBarra}"></span></div>
          ${pct >= 100 ? '<div class="usos-critical">Límite alcanzado</div>' : ''}`;
 
-    // Acciones: Extender visible; el resto en el menú ⋯
+    // Acciones: en pantallas anchas, todas a la vista; en estrechas, Extender + menú ⋯
     const acciones = `<div class="acciones">
+        <button class="action-btn acc-ancha" data-code="${esc(u.code)}" onclick="resetFingerprint(this.dataset.code)" title="Desvincular el dispositivo para que pueda entrar desde otro">🔓 Reset FP</button>
         <button class="action-btn extend" data-code="${esc(u.code)}" data-expira="${esc(u.expira || '')}" onclick="openExtender(this.dataset.code, this.dataset.expira)" title="Extender acceso">📅<span class="lbl"> Extender</span></button>
+        ${!esPro && usosUsados > 0 ? `<button class="action-btn acc-ancha" data-code="${esc(u.code)}" onclick="resetUsos(this.dataset.code)" title="Vuelve a dejar 30 análisis disponibles">↺ Análisis</button>` : ''}
+        <button class="action-btn acc-ancha" data-code="${esc(u.code)}" data-activo="${u.activo ? 'true' : 'false'}" onclick="toggleActivo(this.dataset.code, this.dataset.activo === 'true')">${u.activo ? '⏸ Desactivar' : '▶ Activar'}</button>
+        <button class="action-btn danger acc-ancha" data-code="${esc(u.code)}" onclick="deleteCode(this.dataset.code)" title="Borrar código y sus datos">✕</button>
         <details class="menu-acc" ontoggle="abrirMenu(this)">
-          <summary class="action-btn" aria-label="Más acciones">⋯</summary>
+          <summary class="action-btn" aria-label="Más acciones">⋯ Más</summary>
           <div class="menu-items">
             <button data-code="${esc(u.code)}" onclick="cerrarMenus(); resetFingerprint(this.dataset.code)">🔓 Reset FP (cambiar de dispositivo)</button>
             ${!esPro && usosUsados > 0 ? `<button data-code="${esc(u.code)}" onclick="cerrarMenus(); resetUsos(this.dataset.code)" title="Vuelve a dejar 30 análisis disponibles">↺ Análisis (reiniciar a 0)</button>` : ''}
