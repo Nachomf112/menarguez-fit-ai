@@ -191,8 +191,35 @@ button { cursor: pointer; font: inherit; }
 .tab.active { color: var(--green); border-bottom-color: var(--green); }
 .tab:hover { color: var(--text); }
 
+/* TABLA DE USUARIOS (v2) */
+.nowrap { white-space: nowrap; }
+.code-cell { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.copy-btn { background: none; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); cursor: pointer; font-size: 11px; padding: 2px 6px; }
+.copy-btn:hover { color: var(--green); border-color: var(--green); }
+.estado-sub { font-size: 11px; margin-top: 4px; white-space: nowrap; }
+.usos-bar { width: 72px; height: 5px; background: var(--line); border-radius: 3px; margin-top: 5px; overflow: hidden; }
+.usos-bar span { display: block; height: 100%; border-radius: 3px; }
+.acciones { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.menu-acc { position: relative; }
+.menu-acc > summary { list-style: none; cursor: pointer; }
+.menu-acc > summary::-webkit-details-marker { display: none; }
+.menu-items { position: fixed; z-index: 50; min-width: 190px; background: var(--panel, #162b1c); border: 1px solid var(--line); border-radius: 10px; padding: 6px; box-shadow: 0 12px 32px rgba(0,0,0,.45); display: flex; flex-direction: column; gap: 2px; }
+.menu-items button { text-align: left; background: none; border: 0; color: var(--text); font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+.menu-items button:hover { background: rgba(74,222,128,.08); color: var(--green); }
+.menu-items button.danger:hover { background: rgba(248,113,113,.1); color: var(--red); }
+.menu-items hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+.sin-vincular { font-size: 12px; color: var(--muted); }
+#tablaUsuarios .usos-critical, .entreno-cell { white-space: nowrap; }
+@media (max-width: 1400px) {
+  .content { padding: 20px 16px; }
+  #tablaUsuarios td, #tablaUsuarios ~ thead th, table th { padding-left: 8px; padding-right: 8px; }
+  #tablaUsuarios td { padding-left: 8px; padding-right: 8px; }
+  .action-btn.extend { padding-left: 8px; padding-right: 8px; }
+}
+@media (max-width: 1250px) { .acciones .lbl { display: none; } }
+
 /* CONTENT */
-.content { padding: 24px 28px; max-width: 1400px; }
+.content { padding: 24px 28px; max-width: none; }
 
 /* STATS GRID */
 .stats-grid {
@@ -986,12 +1013,9 @@ tr:hover td { background: rgba(74,222,128,.03); }
               <th>Código</th>
               <th>Plan</th>
               <th>Estado</th>
-              <th>Expira</th>
               <th>Dispositivo</th>
-              <th>IP</th>
               <th>Registro</th>
-              <th>Usos</th>
-              <th>Ubicación</th>
+              <th>Análisis IA</th>
               <th>Entreno</th>
               <th>Acciones</th>
             </tr>
@@ -1401,67 +1425,115 @@ const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 function renderUsuarios(users) {
   const tbody = document.getElementById('tablaUsuarios');
   if (!users.length) {
-    tbody.innerHTML = '<tr class="loading-row"><td colspan="12" style="color:var(--muted)">No hay usuarios registrados.</td></tr>';
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="9" style="color:var(--muted)">No hay usuarios registrados.</td></tr>';
     return;
   }
 
-  const hoy = new Date();
-
   tbody.innerHTML = users.map(u => {
-    const exp = u.expira ? new Date(u.expira) : null;
-    const expirado = exp && exp < hoy;
+    const dias = diasRestantes(u.expira);
+    const expirado = dias !== null && dias <= 0;
     const dispositivo = u.dispositivo || {};
-    const tipo = dispositivo.tipo || '—';
+    const vinculado = !!(u.fingerprint || dispositivo.os || dispositivo.browser);
+    const tipo = dispositivo.tipo || '';
     const tipoIcon = tipo === 'móvil' ? '📱' : tipo === 'tablet' ? '📲' : '💻';
     const tipoBadge = tipo === 'móvil' ? 'badge-mobile' : tipo === 'tablet' ? 'badge-tablet' : 'badge-desktop';
+    const esPro = u.plan === 'pro';
 
-    // ── ALERTA USOS (solo Free) ──
+    // Estado + caducidad en una sola celda
+    let estadoBadge, estadoSub;
+    if (!u.activo) { estadoBadge = '<span class="badge badge-expired">Desactivado</span>'; }
+    else if (expirado) { estadoBadge = '<span class="badge badge-expired">Caducado</span>'; }
+    else if (dias !== null && dias <= 3) { estadoBadge = '<span class="badge" style="background:rgba(251,146,60,.12);color:var(--orange)">Caduca pronto</span>'; }
+    else { estadoBadge = '<span class="badge badge-active">Activo</span>'; }
+    if (dias === null) estadoSub = esc(u.expira || 'sin fecha');
+    else if (dias > 3650) estadoSub = 'sin caducidad';
+    else estadoSub = `${esc(fechaCorta(u.expira))} · ${dias <= 0 ? (dias === 0 ? 'caduca hoy' : `hace ${-dias} ${-dias === 1 ? 'día' : 'días'}`) : `quedan ${dias} ${dias === 1 ? 'día' : 'días'}`}`;
+    const colorSub = expirado ? 'var(--red)' : (dias !== null && dias <= 3 ? 'var(--orange)' : 'var(--muted)');
+
+    // Dispositivo (IP y ubicación aproximada al pasar el ratón)
+    const ubic = u.ubicacion ? `${u.ubicacion.ciudad || ''}, ${u.ubicacion.pais || ''}` : '';
+    const detalle = [dispositivo.os, dispositivo.browser].filter(Boolean).join(' · ');
+    const titulo = [dispositivo.ip ? 'IP ' + dispositivo.ip : '', ubic ? 'Ubicación aprox. ' + ubic : ''].filter(Boolean).join(' · ');
+    const celdaDisp = vinculado
+      ? `<div title="${esc(titulo)}"><span class="device-icon">${tipoIcon}</span> <span class="badge ${tipoBadge}" style="font-size:10px">${esc(tipo || 'escritorio')}</span>
+         <div style="font-size:10px;color:var(--muted);margin-top:3px" class="nowrap">${esc(detalle)}</div>
+         ${ubic ? `<div style="font-size:10px;color:var(--muted)" class="nowrap">${esc(ubic)} (aprox.)</div>` : ''}</div>`
+      : '<span class="sin-vincular">Sin vincular · aún no ha entrado</span>';
+
+    // Análisis de IA con barra
     const usosUsados = num(u.usos_usados);
-    const usosMax = u.plan === 'pro' ? 0 : 30;
-    let usosAlerta = '';
-    if (u.plan === 'free' && usosMax > 0) {
-      const pct = (usosUsados / usosMax) * 100;
-      if (pct >= 100) {
-        usosAlerta = `<div class="usos-critical">🔴 Límite alcanzado</div>`;
-      } else if (pct >= 80) {
-        usosAlerta = `<div class="usos-warn">⚠️ ${Math.round(pct)}% usado</div>`;
-      }
-    }
+    const usosMax = num(u.usos_max) || 30;
+    const pct = esPro ? 0 : Math.min(100, Math.round((usosUsados / usosMax) * 100));
+    const colorBarra = pct >= 100 ? 'var(--red)' : pct >= 80 ? 'var(--orange)' : 'var(--green)';
+    const celdaUsos = esPro
+      ? `<span class="mono" style="color:var(--green)">${usosUsados}</span><span style="font-size:11px;color:var(--muted)"> / ∞</span>`
+      : `<span class="mono" style="color:${colorBarra}">${usosUsados}</span><span style="font-size:11px;color:var(--muted)"> / ${usosMax}</span>
+         <div class="usos-bar"><span style="width:${pct}%;background:${colorBarra}"></span></div>
+         ${pct >= 100 ? '<div class="usos-critical">Límite alcanzado</div>' : ''}`;
+
+    // Acciones: Extender visible; el resto en el menú ⋯
+    const acciones = `<div class="acciones">
+        <button class="action-btn extend" data-code="${esc(u.code)}" data-expira="${esc(u.expira || '')}" onclick="openExtender(this.dataset.code, this.dataset.expira)" title="Extender acceso">📅<span class="lbl"> Extender</span></button>
+        <details class="menu-acc" ontoggle="abrirMenu(this)">
+          <summary class="action-btn" aria-label="Más acciones">⋯</summary>
+          <div class="menu-items">
+            <button data-code="${esc(u.code)}" onclick="cerrarMenus(); resetFingerprint(this.dataset.code)">🔓 Reset FP (cambiar de dispositivo)</button>
+            ${!esPro && usosUsados > 0 ? `<button data-code="${esc(u.code)}" onclick="cerrarMenus(); resetUsos(this.dataset.code)" title="Vuelve a dejar 30 análisis disponibles">↺ Análisis (reiniciar a 0)</button>` : ''}
+            <button data-code="${esc(u.code)}" data-activo="${u.activo ? 'true' : 'false'}" onclick="cerrarMenus(); toggleActivo(this.dataset.code, this.dataset.activo === 'true')">${u.activo ? '⏸ Desactivar' : '▶ Activar'}</button>
+            <hr>
+            <button class="danger" data-code="${esc(u.code)}" onclick="cerrarMenus(); deleteCode(this.dataset.code)">✕ Borrar código</button>
+          </div>
+        </details>
+      </div>`;
 
     return `<tr>
       <td>
         <div style="font-weight:600">${esc(u.nombre || '—')}</div>
         <div style="font-size:11px;color:var(--muted)">${esc(u.email || '—')}</div>
       </td>
-      <td><span class="mono" style="color:var(--green)">${esc(u.code || '—')}</span></td>
-      <td><span class="badge ${u.plan === 'pro' ? 'badge-pro' : u.plan === 'cancelled' ? 'badge-expired' : 'badge-free'}">${esc(String(u.plan || 'free').toUpperCase())}</span></td>
-      <td><span class="badge ${expirado ? 'badge-expired' : 'badge-active'}">${expirado ? 'Expirado' : 'Activo'}</span></td>
-      <td style="font-size:12px;color:${expirado ? 'var(--red)' : 'var(--muted)'}">${esc(u.expira || '—')}${celdaDiasRestantes(u.expira)}</td>
-      <td>
-        <span class="device-icon">${tipoIcon}</span>
-        <span class="badge ${tipoBadge}" style="font-size:10px">${esc(tipo)}</span>
-        <div style="font-size:10px;color:var(--muted);margin-top:3px">${esc(dispositivo.os || '')} · ${esc(dispositivo.browser || '')}</div>
-      </td>
-      <td><span class="mono" style="font-size:11px;color:var(--muted)">${esc(dispositivo.ip || '—')}</span></td>
-      <td style="font-size:12px;color:var(--muted)">${esc(u.fecha_registro || '—')}</td>
-      <td>
-        <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--green)">${usosUsados}</span>
-        <span style="font-size:11px;color:var(--muted)"> / ${u.plan === 'pro' ? '∞' : '30'}</span>
-        ${usosAlerta}
-      </td>
-      <td style="font-size:12px;color:var(--muted)">
-        ${u.ubicacion ? `${esc(u.ubicacion.ciudad)}, ${esc(u.ubicacion.pais)}` : '—'}
-      </td>
-      <td style="font-size:12px">${celdaEntreno(u.entreno)}</td>
-      <td>
-        <button class="action-btn" data-code="${esc(u.code)}" onclick="resetFingerprint(this.dataset.code)">Reset FP</button>
-        <button class="action-btn extend" data-code="${esc(u.code)}" data-expira="${esc(u.expira || '')}" onclick="openExtender(this.dataset.code, this.dataset.expira)">📅 Extender</button>
-        ${u.plan !== 'pro' && usosUsados > 0 ? `<button class="action-btn" data-code="${esc(u.code)}" onclick="resetUsos(this.dataset.code)" title="Vuelve a dejar 30 análisis disponibles">↺ Análisis</button>` : ''}
-        <button class="action-btn" data-code="${esc(u.code)}" data-activo="${u.activo ? 'true' : 'false'}" onclick="toggleActivo(this.dataset.code, this.dataset.activo === 'true')">${u.activo ? 'Desactivar' : 'Activar'}</button>
-        <button class="action-btn danger" data-code="${esc(u.code)}" onclick="deleteCode(this.dataset.code)">✕</button>
-      </td>
+      <td><span class="code-cell"><span class="mono" style="color:var(--green)">${esc(u.code || '—')}</span><button class="copy-btn" data-code="${esc(u.code || '')}" onclick="copiarCodigo(this)" title="Copiar código">📋</button></span></td>
+      <td><span class="badge ${esPro ? 'badge-pro' : u.plan === 'cancelled' ? 'badge-expired' : 'badge-free'}">${esc(String(u.plan || 'free').toUpperCase())}</span></td>
+      <td>${estadoBadge}<div class="estado-sub" style="color:${colorSub}">${estadoSub}</div></td>
+      <td>${celdaDisp}</td>
+      <td class="nowrap" style="font-size:12px;color:var(--muted)">${esc(fechaCorta(u.fecha_registro) || '—')}</td>
+      <td>${celdaUsos}</td>
+      <td class="entreno-cell" style="font-size:12px">${celdaEntreno(u.entreno)}</td>
+      <td>${acciones}</td>
     </tr>`;
   }).join('');
+}
+
+// Fecha legible: "13 dic 2026" (acepta AAAA-MM-DD o DD/MM/AAAA); si no se reconoce, se devuelve tal cual
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function fechaCorta(v) {
+  if (typeof v !== 'string' || !v) return v || '';
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+  if (m) return `${Number(m[3])} ${MESES[Number(m[2]) - 1] || m[2]} ${m[1]}`;
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(v);
+  if (m) return `${Number(m[1])} ${MESES[Number(m[2]) - 1] || m[2]} ${m[3]}`;
+  return v;
+}
+
+// Menú ⋯: posición fija para que no lo recorte el desplazamiento de la tabla; solo uno abierto
+function cerrarMenus(excepto) {
+  document.querySelectorAll('.menu-acc[open]').forEach((d) => { if (d !== excepto) d.removeAttribute('open'); });
+}
+function abrirMenu(d) {
+  if (!d.open) return;
+  cerrarMenus(d);
+  const r = d.querySelector('summary').getBoundingClientRect();
+  const m = d.querySelector('.menu-items');
+  const alto = m.offsetHeight || 180;
+  const top = r.bottom + 6 + alto > window.innerHeight ? Math.max(8, r.top - alto - 6) : r.bottom + 6;
+  m.style.top = top + 'px';
+  m.style.left = Math.max(8, Math.min(window.innerWidth - 200, r.right - 190)) + 'px';
+}
+document.addEventListener('click', (e) => { if (!e.target.closest('.menu-acc')) cerrarMenus(); });
+window.addEventListener('scroll', () => cerrarMenus(), true);
+
+async function copiarCodigo(btn) {
+  try { await navigator.clipboard.writeText(btn.dataset.code); toast('Código copiado ✓'); }
+  catch (e) { toast('No se pudo copiar', 'error'); }
 }
 
 // Días que quedan hasta la caducidad (el código deja de valer al empezar el día de "expira")
@@ -1471,21 +1543,12 @@ function diasRestantes(expira) {
   if (Number.isNaN(fin)) return null;
   return Math.ceil((fin - Date.now()) / 86400000);
 }
-function celdaDiasRestantes(expira) {
-  const d = diasRestantes(expira);
-  if (d === null) return '';
-  const [texto, color] = d > 3650 ? ['sin caducidad', 'var(--muted)']
-    : d <= 0 ? [d === 0 ? 'caduca hoy' : `caducó hace ${-d} ${-d === 1 ? 'día' : 'días'}`, 'var(--red)']
-    : [`quedan ${d} ${d === 1 ? 'día' : 'días'}`, d <= 3 ? 'var(--orange)' : 'var(--green)'];
-  return `<div style="font-size:10px;margin-top:3px;color:${color}">${texto}</div>`;
-}
-
 // Uso de /entreno: número de aperturas y último acceso (hora de Madrid)
 function celdaEntreno(e) {
   if (!e || !num(e.aperturas)) return '<span style="color:var(--muted)">—</span>';
   const d = new Date(e.ultimo_acceso);
   const ultimo = isNaN(d) ? '—' : d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
-  return `<span class="mono" style="color:var(--green)">${num(e.aperturas)}</span><span style="color:var(--muted)"> aperturas</span>
+  return `<span class="mono" style="color:var(--green)">${num(e.aperturas)}</span><span style="color:var(--muted)"> ${num(e.aperturas) === 1 ? 'apertura' : 'aperturas'}</span>
     <div style="font-size:10px;color:var(--muted);margin-top:3px">último: ${esc(ultimo)}</div>`;
 }
 
