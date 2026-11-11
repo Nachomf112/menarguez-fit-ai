@@ -440,6 +440,7 @@ tr:hover td { background: rgba(74,222,128,.03); }
 
 .action-btn:hover { border-color: var(--green); color: var(--green); }
 .action-btn.danger:hover { border-color: var(--red); color: var(--red); }
+.action-btn:disabled { opacity: .35; cursor: not-allowed; border-color: var(--line); color: var(--muted); }
 .action-btn.extend:hover { border-color: var(--yellow); color: var(--yellow); }
 
 .mono { font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: .05em; }
@@ -1478,7 +1479,9 @@ function renderUsuarios(users) {
     const acciones = `<div class="acciones">
         <button class="action-btn acc-ancha" data-code="${esc(u.code)}" onclick="resetFingerprint(this.dataset.code)" title="Desvincular el dispositivo para que pueda entrar desde otro">🔓 Reset FP</button>
         <button class="action-btn extend" data-code="${esc(u.code)}" data-expira="${esc(u.expira || '')}" onclick="openExtender(this.dataset.code, this.dataset.expira)" title="Extender acceso">📅<span class="lbl"> Extender</span></button>
-        ${!esPro && usosUsados > 0 ? `<button class="action-btn acc-ancha" data-code="${esc(u.code)}" onclick="resetUsos(this.dataset.code)" title="Vuelve a dejar 30 análisis disponibles">↺ Análisis</button>` : ''}
+        ${!esPro ? (usosUsados > 0
+          ? `<button class="action-btn acc-ancha" data-code="${esc(u.code)}" onclick="resetUsos(this.dataset.code)" title="Vuelve a dejar 30 análisis disponibles">↺ Análisis</button>`
+          : `<button class="action-btn acc-ancha" disabled title="No ha usado ningún análisis: no hay nada que reiniciar">↺ Análisis</button>`) : ''}
         <button class="action-btn acc-ancha" data-code="${esc(u.code)}" data-activo="${u.activo ? 'true' : 'false'}" onclick="toggleActivo(this.dataset.code, this.dataset.activo === 'true')">${u.activo ? '⏸ Desactivar' : '▶ Activar'}</button>
         <button class="action-btn danger acc-ancha" data-code="${esc(u.code)}" onclick="deleteCode(this.dataset.code)" title="Borrar código y sus datos">✕</button>
         <details class="menu-acc" ontoggle="abrirMenu(this)">

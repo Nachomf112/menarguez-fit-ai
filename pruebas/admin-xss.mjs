@@ -69,7 +69,7 @@ check('el CSV escapa comillas', csv.includes('""'));
 
 // Días restantes, reinicio de análisis y filtros que se mantienen al recargar
 check('muestra los días que quedan hasta la caducidad', (await page.locator('#tablaUsuarios').innerText()).includes('quedan '));
-check('botón de reiniciar análisis solo en Free con análisis usados', (await page.locator('#tablaUsuarios .menu-items button', { hasText: '↺ Análisis' }).count()) === 1 && (await page.locator('#tablaUsuarios .acc-ancha', { hasText: '↺ Análisis' }).count()) === 1);
+check('botón de reiniciar análisis solo en Free con análisis usados', (await page.locator('#tablaUsuarios .menu-items button', { hasText: '↺ Análisis' }).count()) === 1 && (await page.locator('#tablaUsuarios .acc-ancha:not([disabled])', { hasText: '↺ Análisis' }).count()) === 1);
 await page.fill('#searchUsuarios', 'Ana');
 await page.evaluate(() => filterUsuarios());
 await page.evaluate(() => loadAll());
