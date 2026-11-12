@@ -79,6 +79,8 @@ export interface Profile {
   nombre: string;
   edad: number;
   objetivo: Goal;
+  /** Segundo objetivo opcional: el principal manda; el secundario ajusta el plan. */
+  objetivoSecundario?: Goal | null;
   experiencia: Experience;
   actividad: ActivityLevel;
   dias: number;

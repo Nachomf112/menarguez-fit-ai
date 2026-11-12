@@ -3,7 +3,7 @@
 // base de conocimiento del proyecto (principiantes 1–3 series, 6–15 reps, sin llegar al fallo).
 
 import { EXERCISES, EXERCISE_BY_ID, LIMITATION_LABEL } from '../data/exercises';
-import { runDaysFor, runningNotes, runSessions } from './running';
+import { MIN_SESION_CARRERA, runDaysFor, runningNotes, runSessions, weeklyBudget } from './running';
 import type {
   Aerobic, Exercise, Goal, Pattern, PlannedExercise, PlannedSession, Prescription, Profile, WeekPlan,
 } from './types';
@@ -66,6 +66,28 @@ const GOAL_TEXT: Record<Goal, string> = {
   carrera: 'Fuerza de apoyo para correr: piernas, tronco y prevención de molestias',
 };
 
+/** Nombre corto de cada objetivo (para textos del plan). */
+export const GOAL_SHORT: Record<Goal, string> = {
+  hipertrofia: 'ganar músculo', fuerza: 'ganar fuerza', salud: 'salud y forma general',
+  composicion: 'mejorar la composición corporal', resistencia: 'resistencia muscular', carrera: 'preparar una carrera',
+};
+const AEROBIC_GOALS: Goal[] = ['salud', 'composicion', 'resistencia'];
+
+/** Objetivo secundario válido (distinto del principal) o null. */
+export function secondaryGoal(p: Pick<Profile, 'objetivo' | 'objetivoSecundario'>): Goal | null {
+  const s = p.objetivoSecundario;
+  return s && s !== p.objetivo && s in GOAL_SHORT ? s : null;
+}
+/** ¿Alguno de los dos objetivos es aeróbico/salud? */
+function aerobicGoal(p: Profile): boolean {
+  const sec = secondaryGoal(p);
+  return AEROBIC_GOALS.includes(p.objetivo) || (!!sec && AEROBIC_GOALS.includes(sec));
+}
+/** ¿La persona quiere correr (como objetivo principal o secundario)? */
+export function wantsRace(p: Profile): boolean {
+  return p.objetivo === 'carrera' || secondaryGoal(p) === 'carrera';
+}
+
 export const AEROBIC_LABEL: Record<Aerobic, string> = {
   caminar: 'Caminar a paso vivo', correr: 'Correr suave', bici: 'Bicicleta', eliptica: 'Elíptica', nadar: 'Nadar', remo: 'Remo ergómetro',
 };
@@ -86,7 +108,7 @@ export function canPlan(p: Profile): { ok: true } | { ok: false; motivo: string;
   if (!(p.dias >= 1 && p.dias <= 6)) faltan.push('días disponibles (1 a 6)');
   if (!(p.minutos >= 20 && p.minutos <= 120)) faltan.push('minutos por sesión (20 a 120)');
   if (!p.material?.length) faltan.push('material disponible');
-  if (p.objetivo === 'carrera' && !p.carrera?.distancia) faltan.push('datos de tu carrera (distancia y experiencia)');
+  if (wantsRace(p) && !p.carrera?.distancia) faltan.push('datos de tu carrera (distancia y experiencia)');
   if (faltan.length) return { ok: false, motivo: 'Faltan datos para planificar con seguridad.', faltan };
   if (p.edad < 18) return { ok: false, motivo: 'Menarguez Fit IA es solo para mayores de 18 años.' };
   const s = p.screening;
@@ -141,7 +163,12 @@ export function prescription(p: Profile, e: Exercise, rol: Role): Prescription {
   const beginner = isBeginner(p);
   const compound = e.tipo === 'compuesto';
   let repsMin: number, repsMax: number, descansoSeg: number;
-  const goal = p.objetivo === 'carrera' ? (p.carrera && ['400', '800'].includes(p.carrera.distancia) ? 'fuerza' : 'salud') : p.objetivo;
+  const sec = secondaryGoal(p);
+  // Corredores: fuerza de apoyo con reps de salud (o de fuerza en 400/800); si el segundo objetivo
+  // es fuerza, hipertrofia o resistencia, se usan sus rangos.
+  const goal = p.objetivo === 'carrera'
+    ? (p.carrera && ['400', '800'].includes(p.carrera.distancia) ? 'fuerza' : sec && ['fuerza', 'hipertrofia', 'resistencia'].includes(sec) ? sec : 'salud')
+    : p.objetivo;
   switch (goal) {
     case 'fuerza':
       [repsMin, repsMax] = compound ? (beginner ? [6, 8] : [4, 6]) : [8, 12];
@@ -202,7 +229,9 @@ function strengthAerobicSplit(p: Profile): { S: number; A: number } {
   const dias = Math.min(6, Math.max(1, Math.round(p.dias)));
   const cap = isBeginner(p) ? 3 : p.experiencia === 'intermedio' ? 4 : 6;
   let S = Math.min(dias, cap);
-  if (['salud', 'composicion', 'resistencia'].includes(p.objetivo) && dias >= 4) S = Math.min(S, dias - 1);
+  if (aerobicGoal(p) && dias >= 4) S = Math.min(S, dias - 1);
+  // Carrera como segundo objetivo: se reservan días para correr (1 con 2–4 días, 2 con 5–6)
+  if (secondaryGoal(p) === 'carrera' && p.carrera && dias >= 2) S = Math.min(S, Math.max(1, dias - (dias >= 5 ? 2 : 1)));
   return { S, A: dias - S };
 }
 
@@ -229,6 +258,9 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
   const { usable, excluidos } = availableExercises(p);
   const pref = preferredDifficulty(p);
   const runner = p.objetivo === 'carrera' && !!p.carrera;
+  const sec = secondaryGoal(p);
+  const carreraSec = !runner && sec === 'carrera' && !!p.carrera;
+  const objetivoFuerza = GOAL_TEXT[p.objetivo] + (sec ? `. También: ${GOAL_SHORT[sec]}` : '');
   const rd = runner ? runDaysFor(p) : null;
   const { S, A } = runner ? { S: rd!.strength.length, A: 0 } : strengthAerobicSplit(p);
   const strengthDays = runner ? rd!.strength : STRENGTH_DAYS[S] ?? [];
@@ -319,7 +351,7 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
       dia: strengthDays[i],
       tipo: 'fuerza',
       titulo: tpl.titulo,
-      objetivo: GOAL_TEXT[p.objetivo],
+      objetivo: objetivoFuerza,
       minutosEstimados: Math.round(total),
       calentamiento: warmup(p, items.map((it) => EXERCISE_BY_ID[it.exerciseId])),
       ejercicios: items,
@@ -328,7 +360,18 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
     });
   });
 
-  aerobicDays.forEach((d, i) => {
+  // Carrera como segundo objetivo: rodajes suaves (o correr y caminar) en los días aeróbicos, como
+  // mucho los que caben en el volumen semanal permitido (mismo límite que el plan de carrera).
+  // Si sobran días, siguen siendo aeróbicos normales.
+  let diasAerobicos = aerobicDays;
+  if (carreraSec && aerobicDays.length) {
+    const c = p.carrera!;
+    const maxRun = c.experiencia === 'empiezo' ? 3 : Math.max(1, Math.floor(weeklyBudget(c.minutosSemana) / MIN_SESION_CARRERA));
+    const diasCarrera = aerobicDays.slice(0, maxRun);
+    diasAerobicos = aerobicDays.slice(maxRun);
+    sesiones.push(...runSessions(p, diasCarrera, now, { soloSuave: true }));
+  }
+  diasAerobicos.forEach((d, i) => {
     const act = pickAerobic(p);
     const min = Math.max(20, Math.min(p.minutos - 10, isBeginner(p) ? 30 : 45));
     sesiones.push({
@@ -373,7 +416,7 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
   const ocupados = new Set(sesiones.map((s) => s.dia));
   const diasDescanso = [0, 1, 2, 3, 4, 5, 6].filter((d) => !ocupados.has(d));
 
-  if (['salud', 'composicion', 'resistencia'].includes(p.objetivo)) {
+  if (aerobicGoal(p)) {
     notas.push('La OMS recomienda a las personas adultas 150–300 min semanales de actividad aeróbica moderada y fuerza al menos 2 días. Si partes de menos, puedes empezar por debajo y progresar.');
   }
   if (p.edad >= 65) notas.push('A partir de los 65 años conviene añadir trabajo de equilibrio varios días por semana (por ejemplo, apoyo unipodal cerca de una pared).');
@@ -381,6 +424,15 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
   if (p.dolorQueAumenta) notas.push('Has indicado dolor que aumenta con el ejercicio. No progreses cargas en los ejercicios que lo provoquen y consulta a un profesional sanitario.');
   if (p.indicacionesProfesionales.trim()) notas.push(`Indicaciones profesionales a respetar: ${p.indicacionesProfesionales.trim()}`);
   if (runner) notas.unshift(...runningNotes(p, now));
+  if (sec) {
+    notas.unshift(runner
+      ? `Tu prioridad es la carrera; también trabajas ${GOAL_SHORT[sec]}${['fuerza', 'hipertrofia', 'resistencia'].includes(sec) ? ' (la fuerza de apoyo usa ese tipo de series)' : ''}. Siempre que el tiempo lo permite, el plan incluye 2 estímulos de fuerza por semana.`
+      : carreraSec
+        ? (aerobicDays.length
+          ? `Tu prioridad es ${GOAL_SHORT[p.objetivo]}; la carrera va como segundo objetivo: rodajes suaves para ganar base, sin series. Si quieres un plan por fases hacia la fecha de la prueba, pon «Preparar una carrera» como objetivo principal.`
+          : 'Con 1 día a la semana no cabe también la carrera. Si añades un día más, el plan incluirá un rodaje suave.')
+        : `Tu prioridad es ${GOAL_SHORT[p.objetivo]}; también trabajas ${GOAL_SHORT[sec]}.`);
+  }
   notas.push('Carga inicial: elige un peso que te permita completar las repeticiones con técnica estable dejando las repeticiones en reserva indicadas. La app no propone kilos hasta tener tus registros.');
 
   const plan: WeekPlan = {
@@ -388,8 +440,9 @@ export function generatePlan(p: Profile, now = new Date()): PlanResult {
     version: 1,
     sesiones,
     diasDescanso,
-    sugerenciaDescanso: runner ? 'Descanso: caminar o nada. Los días sin carrera también forman parte de la preparación.'
-      : ['salud', 'composicion', 'resistencia'].includes(p.objetivo)
+    sugerenciaDescanso: runner
+      ? (aerobicGoal(p) ? 'Descanso: un paseo de 20–30 min suma salud sin cargar las piernas para correr.' : 'Descanso: caminar o nada. Los días sin carrera también forman parte de la preparación.')
+      : aerobicGoal(p)
       ? 'En los días de descanso, un paseo de 20–30 min suma actividad sin interferir con la recuperación.'
       : 'Descanso: actividad cotidiana normal. Dormir bien también forma parte del plan.',
     notas,

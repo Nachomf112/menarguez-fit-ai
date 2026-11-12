@@ -101,8 +101,9 @@ export function runDaysFor(p: Profile): { run: number[]; strength: number[] } {
 // 1500 m o más, además, en fase de base hacen falta al menos 3 salidas. Si no, rodaje suave.
 export const QUALITY: RunType[] = ['series', 'tempo', 'series_cortas', 'cuestas', 'ritmo_carrera'];
 const QUALITY_LONG: RunType[] = ['series', 'tempo'];
-function slotsFor(p: Profile, n: number, now: Date): RunType[] {
+function slotsFor(p: Profile, n: number, now: Date, soloSuave = false): RunType[] {
   const c = p.carrera!;
+  if (soloSuave) return Array.from({ length: n }, () => (c.experiencia === 'empiezo' ? 'correr_caminar' : 'rodaje'));
   const { fase } = phaseOf(c.fechaPrueba, now);
   return slotsBase(p, n, fase === 'base').map((t) => {
     if (QUALITY.includes(t) && c.minutosSemana < BASE_CALIDAD) return 'rodaje';
@@ -245,10 +246,11 @@ function budgetPlans(p: Profile, slotsIn: RunType[], now: Date): RunPlan[] {
   return out;
 }
 
-export function runSessions(p: Profile, days: number[], now: Date): PlannedSession[] {
+/** soloSuave: carrera como segundo objetivo → solo rodajes suaves (o correr y caminar), sin fases. */
+export function runSessions(p: Profile, days: number[], now: Date, { soloSuave = false } = {}): PlannedSession[] {
   const c = p.carrera!;
   const { fase, dias } = phaseOf(c.fechaPrueba, now);
-  const plans = budgetPlans(p, slotsFor(p, days.length, now), now);
+  const plans = budgetPlans(p, slotsFor(p, days.length, now, soloSuave), now);
   const impact = p.limitaciones.some((l) => l === 'rodilla' || l === 'tobillo' || l === 'cadera');
   return days.map((d, i) => {
     const plan = plans[i];
@@ -261,10 +263,11 @@ export function runSessions(p: Profile, days: number[], now: Date): PlannedSessi
       if (plan.tipo === 'rodaje' || plan.tipo === 'tirada') plan.bloques = [`${min} min de carrera continua suave.`];
     }
     if (impact) avisos.push('Has indicado una limitación en rodilla, cadera o tobillo: si aparece dolor al correr, detente y sustitúyelo por bicicleta o elíptica. No aumentes el volumen mientras dure la molestia.');
-    if (fase === 'semana_prueba' && i === days.length - 1) avisos.push('Semana de la prueba: el día anterior, descanso o 15 min muy suaves.');
+    if (!soloSuave && fase === 'semana_prueba' && i === days.length - 1) avisos.push('Semana de la prueba: el día anterior, descanso o 15 min muy suaves.');
     return {
       id: `r${i + 1}-${plan.tipo}`, dia: d, tipo: 'carrera', titulo: RUN_TYPE_LABEL[plan.tipo],
-      objetivo: `Preparación de ${RACE_LABEL[c.distancia]}${dias != null && dias >= 0 ? ` · faltan ${dias} días` : ''}`,
+      objetivo: soloSuave ? `Base de carrera para tu ${RACE_LABEL[c.distancia]} (segundo objetivo)`
+        : `Preparación de ${RACE_LABEL[c.distancia]}${dias != null && dias >= 0 ? ` · faltan ${dias} días` : ''}`,
       minutosEstimados: min, calentamiento: [], ejercicios: [], carrera: plan, vueltaCalma: [], avisos,
     };
   });

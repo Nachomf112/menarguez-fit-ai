@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { EXERCISES, EXERCISE_BY_ID, EQUIPMENT_LABEL, LIMITATION_LABEL } from '../data/exercises';
 import { emptyProfileData } from '../data/demo';
-import { AEROBIC_LABEL, canPlan, generatePlan } from '../domain/planner';
+import { AEROBIC_LABEL, canPlan, generatePlan, secondaryGoal, wantsRace } from '../domain/planner';
 import { fmtTime, parseTime, RACE_LABEL } from '../domain/running';
 import type { Aerobic, Equipment, Limitation, Profile, RaceDistance, RunningProfile } from '../domain/types';
 import { Chip, Notice, Option, Progress, Seg, useApp } from '../ui/kit';
@@ -11,6 +11,8 @@ interface Step { id: string; fase: 1 | 2; titulo: string; show?: (r: R) => boole
 
 const toggle = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 const needsIndications = (r: R) => r.limitaciones.length > 0 || r.dolorQueAumenta || r.screening.sintomasEsfuerzo || r.screening.restriccionProfesional || r.screening.embarazoPosparto;
+
+const CARRERA_INICIAL: RunningProfile = { distancia: '5k', experiencia: 'ocasional', minutosSemana: 45 };
 
 export const GOAL_OPTS: { v: Profile['objetivo']; t: string; d: string }[] = [
   { v: 'hipertrofia', t: 'Ganar músculo', d: 'Aumentar masa muscular de forma progresiva.' },
@@ -58,7 +60,7 @@ function AvoidPicker({ r, u }: { r: R; u: (p: Partial<R>) => void }) {
   );
 }
 
-const showBody = (r: R) => r.objetivo === 'composicion' || r.objetivo === 'hipertrofia';
+const showBody = (r: R) => ['composicion', 'hipertrofia'].some((g) => r.objetivo === g || r.objetivoSecundario === g);
 const validBody = (r: R) => (r.pesoKg != null && !(r.pesoKg >= 30 && r.pesoKg <= 300)) ? 'Peso entre 30 y 300 kg.' : (r.alturaCm != null && !(r.alturaCm >= 120 && r.alturaCm <= 230)) ? 'Altura entre 120 y 230 cm.' : null;
 
 
@@ -95,8 +97,22 @@ const STEPS: Step[] = [
           <label className="field" style={{ flex: '1 1 100px' }}><span>Edad</span><input id="eval-edad" type="number" inputMode="numeric" min={18} max={100} value={Number.isFinite(r.edad) ? r.edad : ''} onChange={(e) => u({ edad: e.target.value === '' ? NaN : Number(e.target.value) })} /></label>
         </div>
         <div className="field"><span>¿Qué quieres conseguir?</span>
-          <div className="choice">{GOAL_OPTS.map((o) => <Option key={o.v} on={r.objetivo === o.v} onClick={() => u(o.v === 'carrera' ? { objetivo: o.v, carrera: r.carrera ?? { distancia: '5k', experiencia: 'ocasional', minutosSemana: 45 } } : { objetivo: o.v })} title={o.t} desc={o.d} />)}</div>
+          <div className="choice">{GOAL_OPTS.map((o) => <Option key={o.v} on={r.objetivo === o.v} onClick={() => u({
+            objetivo: o.v,
+            ...(o.v === r.objetivoSecundario ? { objetivoSecundario: null } : {}),
+            ...(o.v === 'carrera' ? { carrera: r.carrera ?? CARRERA_INICIAL } : {}),
+          })} title={o.t} desc={o.d} />)}</div>
         </div>
+        {r.objetivo && <div className="field"><span>¿Algo más? <span className="faint">(opcional)</span></span>
+          <div className="chips">
+            <Chip on={!r.objetivoSecundario} onClick={() => u({ objetivoSecundario: null })}>Nada más</Chip>
+            {GOAL_OPTS.filter((o) => o.v !== r.objetivo).map((o) => <Chip key={o.v} on={r.objetivoSecundario === o.v} onClick={() => u({
+              objetivoSecundario: o.v,
+              ...(o.v === 'carrera' ? { carrera: r.carrera ?? CARRERA_INICIAL } : {}),
+            })}>{o.t}</Chip>)}
+          </div>
+          <span className="small faint">El objetivo principal marca el plan; el segundo lo ajusta. Por ejemplo: preparar una carrera y, además, salud y forma general.</span>
+        </div>}
       </div>) },
   { id: 'perfil', fase: 1, titulo: 'Tu experiencia y tu actividad',
     body: (r, u) => (
@@ -148,7 +164,7 @@ const STEPS: Step[] = [
           </Notice>
         )}
       </div>) },
-  { id: 'carrera', fase: 2, titulo: 'Tu carrera', show: (r) => r.objetivo === 'carrera',
+  { id: 'carrera', fase: 2, titulo: 'Tu carrera', show: (r) => wantsRace(r),
     valid: (r) => !r.carrera ? 'Elige la distancia.' : r.carrera.fechaPrueba && r.carrera.fechaPrueba < new Date().toISOString().slice(0, 10) ? 'La fecha de la prueba ya ha pasado.' : null,
     body: (r, u) => {
       const c = r.carrera ?? { distancia: '5k' as RaceDistance, experiencia: 'ocasional' as const, minutosSemana: 45 };
@@ -315,7 +331,7 @@ export function Summary() {
         <p className="muted">Puedes corregir cualquier apartado. {exists && 'Al regenerar, tus registros se conservan.'}</p>
       </div>
       <Section id="identidad" title="Datos básicos"><p>{r.nombre || '—'} · {Number.isFinite(r.edad) ? `${r.edad} años` : 'edad sin indicar'}</p></Section>
-      <Section id="identidad" title="Objetivo"><p>{GOAL_OPTS.find((o) => o.v === r.objetivo)?.t}</p></Section>
+      <Section id="identidad" title="Objetivo"><p>{GOAL_OPTS.find((o) => o.v === r.objetivo)?.t}{secondaryGoal(r) && <> · además: {GOAL_OPTS.find((o) => o.v === secondaryGoal(r))?.t.toLowerCase()}</>}</p></Section>
       <Section id="perfil" title="Experiencia"><p>{EXP_OPTS.find((o) => o.v === r.experiencia)?.t}</p></Section>
       <Section id="perfil" title="Actividad actual"><p>{ACT_OPTS.find((o) => o.v === r.actividad)?.t}</p></Section>
       <Section id="disponibilidad" title="Disponibilidad"><p>{r.dias} días por semana · {r.minutos} min por sesión</p></Section>
@@ -324,7 +340,7 @@ export function Summary() {
         {r.limitaciones.length > 0 && <p>Dolor persistente o que aumenta: {yes(r.dolorQueAumenta)}</p>}
         <p>Síntomas con el esfuerzo: {yes(r.screening.sintomasEsfuerzo)} · Restricción profesional: {yes(r.screening.restriccionProfesional)} · Embarazo o posparto: {yes(r.screening.embarazoPosparto)}</p>
       </Section>
-      {r.objetivo === 'carrera' && r.carrera && <Section id="carrera" title="Carrera">
+      {wantsRace(r) && r.carrera && <Section id="carrera" title="Carrera">
         <p>{RACE_LABEL[r.carrera.distancia]} · experiencia {r.carrera.experiencia} · {r.carrera.minutosSemana} min/semana ahora</p>
         <p>Prueba: {r.carrera.fechaPrueba ? new Date(r.carrera.fechaPrueba + 'T12:00:00').toLocaleDateString('es-ES') : 'sin fecha'} · Marca: {r.carrera.marca ? `${fmtTime(r.carrera.marca.tiempoSeg)} en ${r.carrera.marca.distanciaKm.toString().replace('.', ',')} km` : 'sin indicar'}</p>
       </Section>}
